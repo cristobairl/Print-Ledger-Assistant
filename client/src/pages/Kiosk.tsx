@@ -1,33 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
-import { EventLog } from '../components/EventLog'
-import { PrinterCard } from '../components/PrinterCard'
-import type { EventItem, Job, Printer } from '../types'
+import { useNavigate } from 'react-router-dom'
 
 type SwipeResponse = {
   authorized?: boolean
   first_name?: string
-  last_name?: string
   error?: string
+  is_admin?: boolean
+  created?: boolean
 }
 
-type KioskProps = {
-  printers: Printer[]
-  jobs: Job[]
-  events: EventItem[]
-}
+type SwipeState = 'idle' | 'reading' | 'success' | 'error'
 
-export function Kiosk({ printers, jobs, events }: KioskProps) {
+export function Kiosk() {
+  const navigate = useNavigate()
   const buffer = useRef('')
   const lastKeyTime = useRef(Date.now())
   const [swipeData, setSwipeData] = useState<SwipeResponse | null>(null)
-  const [connectionState, setConnectionState] = useState<'idle' | 'live' | 'offline'>('idle')
+  const [swipeState, setSwipeState] = useState<SwipeState>('idle')
+  const [readerHint, setReaderHint] = useState('Waiting for card swipe')
+  const [adminMode, setAdminMode] = useState(false)
 
   useEffect(() => {
+    let resetTimer: number | undefined
+
     const handleKeyDown = (event: KeyboardEvent) => {
       const now = Date.now()
 
       if (now - lastKeyTime.current > 100) {
         buffer.current = ''
+        setSwipeState('idle')
+        setReaderHint('Waiting for card swipe')
       }
 
       lastKeyTime.current = now
@@ -38,142 +40,166 @@ export function Kiosk({ printers, jobs, events }: KioskProps) {
 
         if (raw.startsWith('%B')) {
           void handleSwipe(raw)
+        } else if (raw.length > 0) {
+          setSwipeState('error')
+          setSwipeData({ error: 'Card data was received, but the swipe format was invalid.' })
+          setReaderHint('Swipe could not be parsed')
         }
         return
       }
 
       if (event.key.length === 1) {
         buffer.current += event.key
+        if (buffer.current.startsWith('%B')) {
+          setSwipeState('reading')
+          setReaderHint('Reading magnetic stripe data')
+        }
       }
+
+      if (resetTimer) {
+        window.clearTimeout(resetTimer)
+      }
+
+      resetTimer = window.setTimeout(() => {
+        if (buffer.current.length === 0 && swipeState === 'reading') {
+          setSwipeState('idle')
+          setReaderHint('Waiting for card swipe')
+        }
+      }, 1200)
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (resetTimer) {
+        window.clearTimeout(resetTimer)
+      }
+    }
+  }, [swipeState])
 
   async function handleSwipe(raw: string) {
+    setSwipeState('reading')
+    setReaderHint('Checking authorization')
+
     try {
       const response = await fetch('http://localhost:3000/auth/swipe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw }),
+        body: JSON.stringify({ raw, adminMode }),
       })
 
       const data = (await response.json()) as SwipeResponse
       setSwipeData(data)
-      setConnectionState('live')
+      if (response.ok && data.authorized) {
+        setSwipeState('success')
+        setReaderHint('Card authorized')
+        window.setTimeout(() => {
+          navigate('/student', {
+            state: {
+              firstName: data.first_name ?? 'Student',
+              isAdmin: Boolean(data.is_admin),
+              created: Boolean(data.created),
+            },
+          })
+        }, 450)
+      } else {
+        setSwipeState('error')
+        setReaderHint('Card not authorized')
+      }
     } catch {
       setSwipeData({
         authorized: true,
         first_name: 'Demo',
-        last_name: 'User',
       })
-      setConnectionState('offline')
+      setSwipeState('success')
+      setReaderHint('Backend offline, showing demo success')
+      window.setTimeout(() => {
+        navigate('/student', {
+          state: {
+            firstName: 'Demo',
+            isAdmin: adminMode,
+            created: true,
+          },
+        })
+      }, 450)
     }
   }
 
   return (
-    <section className="page-grid">
-      <div className="page-stack">
-        <section className="surface surface--hero">
-          <div className="hero-panel">
-            <div>
-              <p className="section-heading__eyebrow">Kiosk session</p>
-              <h2>Swipe your ID to arm a printer</h2>
-              <p className="hero-panel__text">
-                The kiosk listens for rapid MSR90 card input, forwards the raw
-                track data to `/auth/swipe`, and opens a short authorization
-                window for the selected print.
-              </p>
-            </div>
+    <main className="kiosk-screen">
+      <button
+        type="button"
+        className={`admin-toggle ${adminMode ? 'admin-toggle--active' : ''}`}
+        title={adminMode ? 'Admin mode enabled' : 'Admin mode'}
+        aria-label={adminMode ? 'Disable admin mode' : 'Enable admin mode'}
+        onClick={() => setAdminMode((current) => !current)}
+      >
+        A
+      </button>
 
-            <div className="hero-panel__status">
-              <div className="hero-panel__ring" />
-              <div>
-                <p className="label">Reader state</p>
-                <p className="hero-panel__headline">Ready for card swipe</p>
-                <p className="hero-panel__subtle">
-                  {connectionState === 'live' && 'Backend connection healthy.'}
-                  {connectionState === 'offline' &&
-                    'Backend not detected, showing demo authorization state.'}
-                  {connectionState === 'idle' &&
-                    'Waiting for the first swipe event.'}
-                </p>
-              </div>
-            </div>
+      <section className={`kiosk-panel kiosk-panel--${swipeState}`}>
+        <div className="kiosk-panel__header">
+          <p className="kiosk-panel__eyebrow">USF 3D Print Lab</p>
+          <h1>Swipe your student ID</h1>
+          <p className="kiosk-panel__lead">
+            Use the magnetic card reader to begin. The reader types the whole
+            swipe like a keyboard, and this kiosk listens for that full burst of
+            track data automatically.
+          </p>
+        </div>
+
+        <div className="reader-display" aria-live="polite">
+          <div className={`reader-display__pulse reader-display__pulse--${swipeState}`} />
+          <div>
+            <p className="reader-display__label">Reader status</p>
+            <p className="reader-display__value">{readerHint}</p>
           </div>
+        </div>
 
-          <div className="hero-stats">
-            <article>
-              <span>Armed printers</span>
-              <strong>{printers.filter((printer) => printer.status === 'armed').length}</strong>
-            </article>
-            <article>
-              <span>Printing now</span>
-              <strong>
-                {jobs.filter((job) => job.status === 'printing').length}
-              </strong>
-            </article>
-            <article>
-              <span>Security events</span>
-              <strong>
-                {events.filter((event) => event.type === 'security').length}
-              </strong>
-            </article>
-          </div>
-        </section>
-
-        <section className="surface">
-          <div className="section-heading">
-            <div>
-              <p className="section-heading__eyebrow">Authorization</p>
-              <h2>Latest swipe</h2>
-            </div>
-          </div>
-
-          <div className="swipe-result">
-            {swipeData ? (
-              <>
-                <div>
-                  <p className="label">Student</p>
-                  <p className="swipe-result__name">
-                    {swipeData.first_name} {swipeData.last_name}
+        <div className="swipe-card">
+          {swipeData ? (
+            <>
+              <p className="swipe-card__label">Latest result</p>
+              {swipeData.authorized ? (
+                <>
+                  <p className="swipe-card__name">{swipeData.first_name}</p>
+                  <p className="swipe-card__message">
+                    {swipeData.created
+                      ? 'First swipe recorded. Student added and authorized.'
+                      : `Authorization accepted${swipeData.is_admin ? ' with admin access' : ''}.`}
                   </p>
-                </div>
-                <div>
-                  <p className="label">Decision</p>
-                  <p className="swipe-result__decision">
-                    {swipeData.authorized ? 'Authorized' : 'Denied'}
+                </>
+              ) : (
+                <>
+                  <p className="swipe-card__name">Swipe denied</p>
+                  <p className="swipe-card__message">
+                    {swipeData.error ?? 'This card could not be matched to an authorized student.'}
                   </p>
-                </div>
-              </>
-            ) : (
-              <p className="hero-panel__subtle">
-                No swipe captured yet. Focus the kiosk and swipe a student card
-                to test the flow.
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="swipe-card__label">Ready</p>
+              <p className="swipe-card__name">Present card to reader</p>
+              <p className="swipe-card__message">
+                Keep this page focused so the keyboard-style swipe input lands here.
               </p>
-            )}
-          </div>
-        </section>
-      </div>
+            </>
+          )}
+        </div>
 
-      <div className="page-stack">
-        <section className="surface">
-          <div className="section-heading">
-            <div>
-              <p className="section-heading__eyebrow">Printers</p>
-              <h2>Ready to arm</h2>
-            </div>
+        <div className="kiosk-notes">
+          <div className="kiosk-note">
+            <span>1</span>
+            <p>Click anywhere on this screen once so the kiosk keeps focus.</p>
           </div>
-          <div className="printer-list">
-            {printers.map((printer) => (
-              <PrinterCard key={printer.id} printer={printer} />
-            ))}
+          <div className="kiosk-note">
+            <span>2</span>
+            <p>Swipe your ID card.</p>
           </div>
-        </section>
-
-        <EventLog events={events} title="Security event log" />
-      </div>
-    </section>
+        </div>
+      </section>
+    </main>
   )
 }
