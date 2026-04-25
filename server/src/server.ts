@@ -5,11 +5,13 @@ import dotenv from 'dotenv'
 import authRoutes from './routes/auth'
 import jobRoutes from './routes/jobs'
 import printerRoutes from './routes/printers'
+import { PrinterRadar } from './radar'
 
 dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 3000
+export const radar = new PrinterRadar()
 
 app.use(cors())
 app.use(express.json())
@@ -22,6 +24,7 @@ app.get('/status', (req, res) => {
   res.json({ status: 'PLA server running' })
 })
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`PLA server running on port ${PORT}`)
+  await radar.start()
 })
