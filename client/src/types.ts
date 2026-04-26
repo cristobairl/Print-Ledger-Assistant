@@ -1,3 +1,10 @@
+export type LandingState = {
+  firstName?: string
+  cardId?: string
+  isAdmin?: boolean
+  created?: boolean
+}
+
 export type Printer = {
   id: string
   name: string

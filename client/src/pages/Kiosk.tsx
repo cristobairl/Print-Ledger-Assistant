@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { LandingState } from '../types'
 
 type SwipeResponse = {
   authorized?: boolean
@@ -95,14 +96,16 @@ export function Kiosk() {
       if (response.ok && data.authorized) {
         setSwipeState('success')
         setReaderHint('Card authorized')
+        const nextState: LandingState = {
+          firstName: data.first_name ?? 'Student',
+          cardId: data.card_id ?? data.student_id ?? 'Unknown card',
+          isAdmin: Boolean(data.is_admin),
+          created: Boolean(data.created),
+        }
+
         window.setTimeout(() => {
-          navigate('/student', {
-            state: {
-              firstName: data.first_name ?? 'Student',
-              cardId: data.card_id ?? data.student_id ?? 'Unknown card',
-              isAdmin: Boolean(data.is_admin),
-              created: Boolean(data.created),
-            },
+          navigate(Boolean(data.is_admin) ? '/admin' : '/student', {
+            state: nextState,
           })
         }, 450)
       } else {
@@ -116,14 +119,16 @@ export function Kiosk() {
       })
       setSwipeState('success')
       setReaderHint('Backend offline, showing demo success')
+      const nextState: LandingState = {
+        firstName: 'Demo',
+        cardId: 'DEMO-0001',
+        isAdmin: adminMode,
+        created: true,
+      }
+
       window.setTimeout(() => {
-        navigate('/student', {
-          state: {
-            firstName: 'Demo',
-            cardId: 'DEMO-0001',
-            isAdmin: adminMode,
-            created: true,
-          },
+        navigate(adminMode ? '/admin' : '/student', {
+          state: nextState,
         })
       }, 450)
     }

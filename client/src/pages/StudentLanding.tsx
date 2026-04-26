@@ -1,18 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import type { Printer } from '../types'
-
-type StudentLandingState = {
-  firstName?: string
-  cardId?: string
-  isAdmin?: boolean
-  created?: boolean
-}
+import type { LandingState, Printer } from '../types'
 
 export function StudentLanding() {
   const navigate = useNavigate()
   const location = useLocation()
-  const state = (location.state as StudentLandingState | null) ?? null
+  const state = (location.state as LandingState | null) ?? null
   const [timeLabel, setTimeLabel] = useState(() => formatClock(new Date()))
   const [printers, setPrinters] = useState<Printer[]>([])
   const [startPressed, setStartPressed] = useState(false)
@@ -147,7 +140,7 @@ export function StudentLanding() {
             <button
               type="button"
               className="student-footer__admin"
-              onClick={() => navigate('/printers')}
+              onClick={() => navigate('/admin', { state })}
             >
               Admin Dashboard
             </button>
