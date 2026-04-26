@@ -1,108 +1,46 @@
-Markdown
 # Print Ledger Assistant
 
 [![Status](https://img.shields.io/badge/Status-Active-success.svg)](#)
 [![Tech](https://img.shields.io/badge/Stack-React%20%7C%20Vite%20%7C%20TypeScript-blue.svg)](#)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](#)
+[![Printer](https://img.shields.io/badge/API-FlashForge%20TCP-orange.svg)](#)
 
-**Print Ledger Assistant** is a kiosk-based 3D print lab management system. It streamlines student swipe authentication, printer authorization, unauthorized print sniping, live job logging, and filament tracking into a single workflow. 
-
-This system provides a lightweight control layer for labs without requiring proprietary printer hardware, premium printers, or separate spool readers.
-
----
-
-## 🔗 Project Links
-(#) • [**GitHub Repo**](https://github.com/cristobairl/Print-Ledger-Assistant) • [**Documentation**](https://github.com/Parallel-7/flashforge-api-docs/wiki)(#)
+**Print Ledger Assistant** is a kiosk-based 3D print lab management system. It provides a lightweight control layer for student-run labs using FlashForge printers, integrating student swipe authentication, printer authorization, and unauthorized print "sniping" via raw TCP commands.
 
 ---
 
 ## ✨ Core Features
-* **Student Authentication:** Magnetic card swipe integration (HID keyboard emulation).
-* **Log Collection:** Mandatory job metadata entry before print sessions begin.
-* **Timed Authorization:** Secure window for printer access to prevent "ghost" sessions.
-* **Auto-Snipe:** Detects and halts unauthorized printer activity via `~M26` commands.
-* **Filament Tracking:** Real-time gram-tracking per printer with inventory management.
+* **Student Authentication:** Magnetic card swipe (HID/Keyboard mode) with instant student lookup.
+* **FlashForge TCP Watchdog:** Direct communication over Port 8899 using `~M27`, `~M105`, and `~M26`.
+* **Auto-Snipe Logic:** Automatically aborts unauthorized heating or printing activity.
+* **Filament Management:** Real-time gram tracking synchronized with Supabase tables.
+* **Kiosk Interface:** Full-screen optimized dashboard for lab check-ins.
 
 ---
 
 ## 🛠 Tech Stack
-* **Framework:** [React](https://reactjs.org/)
-* **Build Tool:** [Vite](https://vitejs.dev/)
+* **Frontend:** [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
 * **Language:** [TypeScript](https://www.typescriptlang.org/)
-* **Database/Auth:** [Supabase](https://supabase.com/)
-* **Styling:** CSS3 / Tailwind (as configured)
+* **Database:** [Supabase](https://supabase.com/) (Direct Table Access / PostgREST)
+* **Printer Protocol:** Raw TCP Sockets (Port 8899) based on [Parallel-7/flashforge-api-docs](https://github.com/Parallel-7/flashforge-api-docs).
 
 ---
 
 ## 📂 Project Structure
 ```text
 Print-Ledger-Assistant/
-├── src/
-│   ├── components/     # Reusable UI components
-│   ├── pages/          # View logic (Kiosk, Student, Admin, etc.)
-│   ├── hooks/          # Custom React hooks (Watchdog, Auth)
-│   ├── services/       # Supabase client & API logic
-│   ├── types/          # TypeScript interfaces/definitions
-│   ├── App.tsx         # Main routing and layout
-│   └── main.tsx        # Entry point
-├── public/             # Static assets
-├── index.html          # HTML template
-├── vite.config.ts      # Vite configuration
-└── tsconfig.json       # TypeScript configuration
-🚀 Getting Started
-Prerequisites
-A Supabase project (URL and Anon Key required).
-
-A magnetic card reader configured in HID (keyboard) mode.
-
-Installation & Setup
-Clone the repository:
-
-Bash
-git clone [https://github.com/cristobairl/Print-Ledger-Assistant.git](https://github.com/cristobairl/Print-Ledger-Assistant.git)
-cd Print-Ledger-Assistant
-Install dependencies:
-
-Bash
+├── client/             # Vite + React App
+│   ├── src/
+│   │   ├── services/   # Supabase & FlashForge TCP logic
+│   │   ├── hooks/      # Watchdog & Polling hooks
+│   │   ├── pages/      # Kiosk, Admin, and Student forms
+│   │   └── types.ts    # Printer state & DB interfaces
+├── rules.md            # System logic & behavior rules
+├── LICENSE             # MIT
+└── README.md
+🚀 Getting Started1. Supabase ConfigurationThis project interacts directly with Supabase tables. Ensure your tables (Students, Jobs, Printers, Filament) are accessible via the Anon Key.2. Environment SetupCreate a .env file in the client directory:Code snippetVITE_SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
+VITE_SUPABASE_ANON_KEY=your-long-anon-key-string-goes-here
+PORT=3000
+3. InstallationBashcd client
 npm install
-Environment Variables:
-Create a .env file in the root directory:
-
-Code snippet
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-Running for Development
-Bash
 npm run dev
-Open your browser to the local URL provided by Vite (usually http://localhost:5173).
-
-⚙️ Print Policy & Watchdog
-The application maintains a "Watchdog" state that polls printers and enforces the following:
-
-Start Window: 2 minutes (Time allowed to start a print after authorization).
-
-Inactivity Timeout: 3 minutes of idle state triggers a kiosk reset.
-
-Watchdog Polling: * ~M27: Inspects printer activity.
-
-~M105: Monitors temperature telemetry.
-
-~M26: Triggered automatically if heating/printing occurs outside an authorized session.
-
-🛣 Roadmap
-Phase 1: Core authentication, logging, and filament tracking.
-
-Phase 2: Temperature and duration anomaly detection.
-
-Phase 3: Advanced analytics and utilization heatmaps.
-
-Phase 4: QR code integration for direct file uploads.
-
-🤝 Contribution
-Bugs: Please open a GitHub Issue.
-
-Pull Requests: Fork the repo and submit a PR for review.
-
-Maintained by: @cristobairl
-
-License: MIT
+⚙️ Printer Control Logic (Port 8899)The system polls printers every second to enforce lab policy:CommandUsageDescription~M27StatusChecks if the printer is currently building/busy.~M105TelemetryMonitors extruder and bed temperatures.~M26SnipeImmediately halts current heating or print if unauthorized.Auth PolicyAuth Window: 2 minutes to start a print after kiosk check-in.Unauthorized State: If ~M105 shows heating OR ~M27 shows busy without an active DB session, the watchdog triggers ~M26.🤝 SupportFor issues or feature requests, please refer to the rules.md for implementation guardrails or open a GitHub issue.Maintained by: @cristobairl
