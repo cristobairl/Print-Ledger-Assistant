@@ -86,20 +86,6 @@ export type StudentJob = {
   status: string | null
 }
 
-export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped' | 'expired' | 'interrupted'
-
-export type Job = {
-  id: string
-  studentName: string
-  studentId: string
-  printerName: string
-  fileName: string
-  status: JobStatus
-  startedAt: string
-  estimatedTime: string
-  reason: string
-}
-
 export type EventType = 'auth' | 'security' | 'system' | 'snipe'
 
 export type EventItem = {
