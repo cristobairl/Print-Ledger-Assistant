@@ -18,6 +18,16 @@ type JobRow = {
   status: string | null
 }
 
+type CreateJobBody = {
+  studentId?: string
+  printerId?: string
+  fileName?: string
+  fileSizeMb?: number | string
+  estimatedTimeMinutes?: number | string
+  estimatedWeightGrams?: number | string
+  jobReason?: string
+}
+
 router.get('/student/:studentId', async (req, res) => {
   const studentId = req.params.studentId?.trim()
   if (!studentId) {
@@ -39,6 +49,70 @@ router.get('/student/:studentId', async (req, res) => {
   return res.json((data ?? []).map((row) => mapJobRow(row as JobRow)))
 })
 
+router.post('/', async (req, res) => {
+  const body = (req.body ?? {}) as CreateJobBody
+  const studentId = body.studentId?.trim()
+  const printerId = body.printerId?.trim()
+  const fileName = body.fileName?.trim()
+  const jobReason = body.jobReason?.trim()
+  const fileSizeMb = toPositiveNumber(body.fileSizeMb)
+  const estimatedTimeMinutes = toPositiveNumber(body.estimatedTimeMinutes)
+  const estimatedWeightGrams = toPositiveNumber(body.estimatedWeightGrams)
+
+  if (!studentId) {
+    return res.status(400).json({ error: 'Student id is required.' })
+  }
+
+  if (!printerId) {
+    return res.status(400).json({ error: 'Printer id is required.' })
+  }
+
+  if (!fileName) {
+    return res.status(400).json({ error: 'File name is required.' })
+  }
+
+  if (fileSizeMb === null) {
+    return res.status(400).json({ error: 'File size must be a number greater than zero.' })
+  }
+
+  if (estimatedTimeMinutes === null) {
+    return res.status(400).json({ error: 'Estimated time must be a number greater than zero.' })
+  }
+
+  if (estimatedWeightGrams === null) {
+    return res.status(400).json({ error: 'Estimated weight must be a number greater than zero.' })
+  }
+
+  if (!jobReason) {
+    return res.status(400).json({ error: 'Job reason is required.' })
+  }
+
+  const insertPayload = {
+    student_id: studentId,
+    printer_id: printerId,
+    file_name: fileName,
+    file_size: Math.round(fileSizeMb * 1024 * 1024),
+    estimated_time: formatEstimatedTimeLabel(estimatedTimeMinutes),
+    estimated_weight_grams: Number(estimatedWeightGrams.toFixed(2)),
+    job_reason: jobReason,
+    status: 'queued',
+  }
+
+  const { data, error } = await supabase
+    .from('jobs')
+    .insert(insertPayload)
+    .select(
+      'id, student_id, printer_id, file_name, file_size, estimated_time, estimated_weight_grams, job_reason, started_at, ended_at, created_at, status',
+    )
+    .single()
+
+  if (error || !data) {
+    return res.status(500).json({ error: 'Failed to create the job record.' })
+  }
+
+  return res.status(201).json(mapJobRow(data as JobRow))
+})
+
 function mapJobRow(row: JobRow) {
   return {
     id: String(row.id),
@@ -54,6 +128,37 @@ function mapJobRow(row: JobRow) {
     createdAt: row.created_at,
     status: row.status,
   }
+}
+
+function toPositiveNumber(value: number | string | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+function formatEstimatedTimeLabel(totalMinutes: number) {
+  const roundedMinutes = Math.max(1, Math.round(totalMinutes))
+  const hours = Math.floor(roundedMinutes / 60)
+  const minutes = roundedMinutes % 60
+
+  if (hours === 0) {
+    return `${minutes} min`
+  }
+
+  if (minutes === 0) {
+    return `${hours} hr`
+  }
+
+  return `${hours} hr ${minutes} min`
 }
 
 export default router

@@ -159,14 +159,14 @@
 
 .student-screen {
   min-height: 100vh;
-  padding: 24px;
+  padding: 18px 24px 24px;
 }
 
 .student-shell {
   width: min(1120px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 22px;
+  gap: 18px;
 }
 
 .student-shell--log {
@@ -175,6 +175,7 @@
 
 .student-topbar,
 .student-hero,
+.student-details-panel,
 .student-session-panel,
 .student-printer-panel,
 .student-log-panel,
@@ -192,7 +193,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 14px 18px;
 }
 
 .student-brand {
@@ -228,38 +229,155 @@
   font-weight: 700;
 }
 
-.student-hero {
+.student-details-panel__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  padding: 32px;
-  background:
-    radial-gradient(circle at top right, rgba(196, 234, 188, 0.26), transparent 32%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 242, 0.92));
+  margin-bottom: 18px;
 }
 
-.student-hero__copy {
+.student-details-panel__identity {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
-.student-hero h1 {
+.student-details-panel__identity h1 {
   margin: 0;
-  font-size: clamp(2.3rem, 6vw, 4.3rem);
-  line-height: 0.95;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  line-height: 1;
 }
 
-.student-hero__id {
+.student-details-panel__id {
   color: var(--muted);
-  font-size: clamp(1rem, 2.2vw, 1.15rem);
+  font-size: 0.98rem;
   font-weight: 600;
 }
 
+.student-details-panel,
 .student-session-panel,
 .student-printer-panel,
 .student-log-panel {
-  padding: 28px;
+  padding: 22px;
+}
+
+.student-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-field {
+  display: grid;
+  gap: 8px;
+}
+
+.student-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.student-field--full {
+  grid-column: 1 / -1;
+}
+
+.student-field__label {
+  color: var(--text-strong);
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.student-field__input {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 8px;
+  border: 1px solid rgba(23, 35, 31, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+  padding: 12px 14px;
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.student-field__input:focus {
+  outline: 2px solid rgba(22, 90, 119, 0.18);
+  border-color: rgba(22, 90, 119, 0.32);
+}
+
+.student-field__input:disabled {
+  background: rgba(23, 35, 31, 0.04);
+  color: var(--muted);
+}
+
+.student-field__input--textarea {
+  min-height: 124px;
+  resize: vertical;
+}
+
+.student-field__input--stepper {
+  border: 0;
+  border-radius: 0;
+  min-height: 50px;
+  padding: 0 12px;
+  text-align: center;
+  background: transparent;
+}
+
+.student-field__input--stepper:focus {
+  outline: 0;
+  border-color: transparent;
+}
+
+.student-stepper {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: stretch;
+  border-radius: 8px;
+  border: 1px solid rgba(23, 35, 31, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+  overflow: hidden;
+}
+
+.student-stepper:focus-within {
+  outline: 2px solid rgba(22, 90, 119, 0.18);
+  border-color: rgba(22, 90, 119, 0.32);
+}
+
+.student-stepper--disabled {
+  background: rgba(23, 35, 31, 0.04);
+}
+
+.student-stepper__button {
+  border: 0;
+  background: rgba(23, 35, 31, 0.05);
+  color: var(--text-strong);
+  font-size: 1.35rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-stepper__button:hover,
+.student-stepper__button:focus-visible {
+  background: rgba(22, 90, 119, 0.12);
+}
+
+.student-stepper__button:disabled {
+  cursor: default;
+  background: rgba(23, 35, 31, 0.04);
+  color: var(--muted);
+}
+
+.student-field__hint,
+.student-field__error {
+  font-size: 0.88rem;
+}
+
+.student-field__hint {
+  color: var(--muted);
+}
+
+.student-field__error {
+  color: #ae4131;
 }
 
 .student-session-panel {
@@ -322,6 +440,10 @@
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.student-badges--compact {
+  align-content: flex-start;
 }
 
 .student-badge {
@@ -920,17 +1042,26 @@
   }
 
   .student-topbar,
-  .student-hero,
   .student-footer {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .student-details-panel__top,
   .student-badges {
     justify-content: flex-start;
+    flex-direction: column;
   }
 
   .student-session-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .student-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-time-grid {
     grid-template-columns: 1fr;
   }
 
