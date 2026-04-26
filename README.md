@@ -47,7 +47,7 @@ Print-Ledger-Assistant/
 └── README.md
 ```
 🚀 Getting Started1. Supabase SetupEnsure your Supabase tables (Students, Jobs, Printers, Filament) are configured. This project uses direct table access via the Anon Key.2. Environment ConfigurationCreate a .env file in the server directory:Code snippetPORT=3000
-SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
+SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_ANON_KEY=your-long-anon-key-string-goes-here
 3. InstallationStart the Backend:Bashcd server
 npm install
@@ -55,4 +55,4 @@ npm run dev
 Start the Frontend:Bashcd client
 npm install
 npm run dev
-⚙️ Printer Control Logic (Port 8899)The watchdog polls printers every second based on FlashForge API Docs:CommandPurposeDescription~M27StatusInspects if the printer is currently building.~M105TelemetryMonitors real-time extruder/bed temperatures.~M26SnipeAborts unauthorized heating or printing activity.PoliciesAuthorization Window: 2 minutes.Snipe Trigger: If ~M105 shows active heating or ~M27 shows a busy state without an authorized session in the DB, ~M26 is sent immediately.🤝 SupportMaintainer: @cristobairlLicense: MIT
+⚙️ Printer Control Logic (Port 8899)The watchdog polls printers every second based on the FlashForge API Docs:CommandPurposeDescription~M27StatusInspects if the printer is currently building.~M105TelemetryMonitors real-time extruder/bed temperatures.~M26SnipeAborts unauthorized heating or printing activity.PoliciesAuthorization Window: 2 minutes.Snipe Trigger: If ~M105 shows active heating or ~M27 shows a busy state without an authorized session in the DB, ~M26 is sent immediately.🤝 SupportMaintainer: @cristobairlLicense: MIT
