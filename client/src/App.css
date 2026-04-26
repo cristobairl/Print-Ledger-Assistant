@@ -599,6 +599,11 @@
   font-weight: 700;
 }
 
+.student-badge--muted {
+  background: rgba(23, 35, 31, 0.08);
+  color: #17231f;
+}
+
 .student-badge--admin {
   background: rgba(23, 35, 31, 0.12);
   color: #17231f;
@@ -1182,6 +1187,54 @@
 .admin-alert-item__title {
   color: var(--text-strong);
   font-weight: 700;
+}
+
+.admin-printer-row__action {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.admin-printer-row__action--interactive {
+  background: rgba(23, 35, 31, 0.88);
+  color: #f4f7f2;
+  box-shadow: 0 10px 22px rgba(23, 35, 31, 0.14);
+}
+
+.admin-printer-row__action--interactive:hover,
+.admin-printer-row__action--interactive:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(23, 35, 31, 0.18);
+}
+
+.admin-printer-row__action--idle,
+.admin-printer-row__action--offline,
+.admin-printer-row__action--pending {
+  cursor: default;
+}
+
+.admin-printer-row__action--idle {
+  background: rgba(23, 35, 31, 0.08);
+  color: #17231f;
+}
+
+.admin-printer-row__action--offline {
+  background: rgba(174, 65, 49, 0.12);
+  color: #ae4131;
+}
+
+.admin-printer-row__action--pending {
+  background: rgba(22, 90, 119, 0.12);
+  color: #165a77;
+}
+
+.admin-printer-row__action:disabled {
+  opacity: 1;
 }
 
 .admin-printer-row__meta,

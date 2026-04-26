@@ -232,6 +232,9 @@ export function StudentLanding() {
   const availablePrinters = displayPrinters.filter(
     (printer) => mapPrinterAvailability(printer, state, requestedWeightGrams).selectable,
   )
+  const selectedPrinterAvailability = selectedPrinter
+    ? mapPrinterAvailability(selectedPrinter, state, requestedWeightGrams)
+    : null
   const sessionCountdownMs =
     currentSessionPrinter?.authorization.sessionState === 'pending_start' &&
     currentSessionPrinter.authorization.expiresAt
@@ -247,10 +250,11 @@ export function StudentLanding() {
     )
   const canStartSession =
     Boolean(selectedPrinter) &&
-    Boolean(mapPrinterAvailability(selectedPrinter, state, requestedWeightGrams).selectable) &&
+    Boolean(selectedPrinterAvailability?.selectable) &&
     isJobFormComplete &&
     !hasLiveSession &&
     sessionRequestState !== 'submitting'
+  const readinessBadgeLabel = canStartSession ? 'Ready to print' : 'Missing information'
 
   useEffect(() => {
     if (inactivityRemainingMs > 0 || closingSession) {
@@ -476,7 +480,11 @@ export function StudentLanding() {
             </div>
 
             <div className="student-badges student-badges--compact">
-              <span className="student-badge">Ready to print</span>
+              <span
+                className={`student-badge${canStartSession ? '' : ' student-badge--muted'}`}
+              >
+                {readinessBadgeLabel}
+              </span>
               {state.created ? <span className="student-badge">New profile</span> : null}
               {state.isAdmin ? <span className="student-badge student-badge--admin">Admin</span> : null}
             </div>
@@ -703,7 +711,6 @@ export function StudentLanding() {
               <table className="student-table">
                 <thead>
                   <tr>
-                    <th>Student ID</th>
                     <th>File Name</th>
                     <th>Status</th>
                     <th>File Size</th>
@@ -719,7 +726,6 @@ export function StudentLanding() {
                 <tbody>
                   {jobs.map((job) => (
                     <tr key={job.id}>
-                      <td>{state.cardId ?? job.studentId ?? 'Unknown'}</td>
                       <td>{job.fileName ?? 'Untitled file'}</td>
                       <td>{formatJobStatus(job.status)}</td>
                       <td>{formatFileSize(job.fileSize)}</td>

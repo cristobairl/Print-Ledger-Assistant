@@ -175,6 +175,17 @@ export function FilamentInventory() {
       totalUsableWeight,
     }
   }, [spools])
+  const sortedSpools = useMemo(
+    () =>
+      [...spools].sort((left, right) => {
+        if (left.remainingWeightGrams !== right.remainingWeightGrams) {
+          return left.remainingWeightGrams - right.remainingWeightGrams
+        }
+
+        return left.brand.localeCompare(right.brand) || left.material.localeCompare(right.material)
+      }),
+    [spools],
+  )
 
   async function handleCloseSession() {
     if (closingSession) {
@@ -349,7 +360,7 @@ export function FilamentInventory() {
             <div className="section-heading">
               <div>
                 <p className="section-heading__eyebrow">Inventory</p>
-                <h2>Active spool spreadsheet</h2>
+                <h2>Spool spreadsheet</h2>
               </div>
             </div>
 
@@ -398,7 +409,7 @@ export function FilamentInventory() {
                   </tr>
                 </thead>
                 <tbody>
-                  {spools.map((spool) => {
+                  {sortedSpools.map((spool) => {
                     const activePrinter = printers.find((printer) => printer.id === spool.activePrinterId) ?? null
                     return (
                       <tr key={spool.id}>

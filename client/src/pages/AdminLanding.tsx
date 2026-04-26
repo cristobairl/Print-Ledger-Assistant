@@ -21,6 +21,7 @@ export function AdminLanding() {
   const [policyLoading, setPolicyLoading] = useState(true)
   const [policyError, setPolicyError] = useState<string | null>(null)
   const [policySaveState, setPolicySaveState] = useState<'idle' | 'saving'>('idle')
+  const [printerActionId, setPrinterActionId] = useState<string | null>(null)
 
   if (!state?.firstName) {
     return <Navigate to="/kiosk" replace />
@@ -265,6 +266,38 @@ export function AdminLanding() {
     }
   }
 
+  async function handleQuickDeauthorize(printer: Printer) {
+    if (printerActionId === printer.id || printer.authorization.state !== 'authorized') {
+      return
+    }
+
+    setPrinterActionId(printer.id)
+    setError(null)
+
+    try {
+      const response = await fetch(`http://localhost:3000/printers/${printer.id}/deauthorize`, {
+        method: 'POST',
+      })
+
+      const payload = (await response.json()) as {
+        error?: string
+        printers?: Printer[]
+      }
+
+      if (!response.ok || !Array.isArray(payload.printers)) {
+        throw new Error(payload.error ?? `Failed to deauthorize printer with ${response.status}`)
+      }
+
+      setPrinters(payload.printers)
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error ? actionError.message : 'Failed to update printer authorization.',
+      )
+    } finally {
+      setPrinterActionId(null)
+    }
+  }
+
   return (
     <main className="admin-screen">
       <section className="admin-shell">
@@ -451,6 +484,8 @@ export function AdminLanding() {
           <div className="admin-printer-list">
             {fleetPrinters.map((printer) => {
               const availability = mapPrinterAvailability(printer)
+              const isActionPending = printerActionId === printer.id
+              const quickAction = getQuickAuthorizationAction(printer, isActionPending)
 
               return (
                 <article key={printer.id} className="admin-printer-row">
@@ -462,12 +497,19 @@ export function AdminLanding() {
                       />
                       <p className="admin-printer-row__name">{printer.name}</p>
                     </div>
-                    <span className={`status-pill status-pill--${printer.activity.state}`}>
-                      {availability.label}
-                    </span>
+                    <button
+                      type="button"
+                      className={`admin-printer-row__action admin-printer-row__action--${quickAction.tone}`}
+                      disabled={quickAction.disabled}
+                      onClick={() => {
+                        void handleQuickDeauthorize(printer)
+                      }}
+                    >
+                      {quickAction.label}
+                    </button>
                   </div>
                   <p className="admin-printer-row__meta">
-                    {printer.ip} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
+                    {printer.ip} | {availability.label} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
                   </p>
                 </article>
               )
@@ -608,6 +650,38 @@ function mapPrinterAvailability(printer: Printer) {
   return {
     label: 'In Use',
     tone: 'busy' as const,
+  }
+}
+
+function getQuickAuthorizationAction(printer: Printer, isPending: boolean) {
+  if (isPending) {
+    return {
+      label: 'Updating...',
+      disabled: true,
+      tone: 'pending' as const,
+    }
+  }
+
+  if (printer.authorization.state === 'authorized') {
+    return {
+      label: 'Unauthorize',
+      disabled: false,
+      tone: 'interactive' as const,
+    }
+  }
+
+  if (printer.connectivity.state !== 'online') {
+    return {
+      label: 'Offline',
+      disabled: true,
+      tone: 'offline' as const,
+    }
+  }
+
+  return {
+    label: 'Unauthorized',
+    disabled: true,
+    tone: 'idle' as const,
   }
 }
 
