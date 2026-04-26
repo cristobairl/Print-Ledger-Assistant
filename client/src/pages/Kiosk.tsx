@@ -99,6 +99,7 @@ export function Kiosk() {
         const nextState: LandingState = {
           firstName: data.first_name ?? 'Student',
           cardId: data.card_id ?? data.student_id ?? 'Unknown card',
+          studentId: data.student_id,
           isAdmin: Boolean(data.is_admin),
           created: Boolean(data.created),
         }
@@ -122,6 +123,7 @@ export function Kiosk() {
       const nextState: LandingState = {
         firstName: 'Demo',
         cardId: 'DEMO-0001',
+        studentId: 'demo-student',
         isAdmin: adminMode,
         created: true,
       }

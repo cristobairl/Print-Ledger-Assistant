@@ -1,57 +1,39 @@
 import * as net from 'net'
+import { supabase } from './db'
 import type { PrinterStatusSnapshot, TemperatureTelemetry } from './printer-status'
 
 type PrinterRuntime = PrinterStatusSnapshot
+type PrinterConfigRow = {
+  id: string | number
+  ip: string | null
+  name: string | null
+}
+type AuthorizationRequest = {
+  studentId?: string | null
+  cardId?: string | null
+  firstName?: string | null
+  durationMinutes?: number | null
+}
 
 export class PrinterRadar {
   private printers: PrinterRuntime[] = [
-    {
+    this.createPrinterRuntime({
       id: 'handshake-only',
       name: 'Printer 70',
       ip: '192.168.137.162',
-      authorization: {
-        state: 'unauthorized',
-      },
-      connectivity: {
-        state: 'offline',
-        lastSeenAt: null,
-        lastError: null,
-        lastPort: null,
-      },
-      activity: {
-        state: 'unknown',
-        source: 'm27-status',
-        reason: 'No handshake response received yet.',
-        command: '~M27',
-        rawResponse: null,
-      },
-      telemetry: {
-        command: '~M105',
-        rawResponse: null,
-        nozzle: {
-          current: null,
-          target: null,
-        },
-        bed: {
-          current: null,
-          target: null,
-        },
-      },
-      enforcement: {
-        mode: 'observe-only',
-        state: 'idle',
-        lastAction: 'none',
-        reason: 'Observe-only mode. Abort commands are not enabled in the current backend.',
-      },
-    },
+    }),
   ]
   private interval: NodeJS.Timeout | null = null
   private readonly POLL_INTERVAL = 2000
   private readonly PRINTER_PORTS = [8899, 8000]
+  private readonly PRINTER_CONFIG_REFRESH_MS = 10000
+  private readonly DEFAULT_SESSION_MINUTES = 5
+  private lastPrinterConfigRefreshAt = 0
 
   async start() {
+    await this.refreshPrinterConfigs(true)
     console.log(
-      `PrinterRadar diagnostics enabled for ${this.printers[0].ip} using ~M27 and ~M105 on ports ${this.PRINTER_PORTS.join(', ')}`,
+      `PrinterRadar diagnostics enabled for ${this.describeConfiguredPrinters()} using ~M27 and ~M105 on ports ${this.PRINTER_PORTS.join(', ')}`,
     )
 
     if (this.interval) {
@@ -66,6 +48,8 @@ export class PrinterRadar {
   }
 
   private async poll() {
+    await this.refreshPrinterConfigs()
+
     console.log(
       `[Radar] Handshake poll started at ${new Date().toISOString()} for ${this.printers.length} printer(s)`,
     )
@@ -120,6 +104,7 @@ export class PrinterRadar {
             lastPort,
           }
           printer.activity = activity
+          this.syncAuthorizationState(printer, seenAt)
           printer.enforcement = {
             ...printer.enforcement,
             state: activity.state === 'printing' && printer.authorization.state === 'unauthorized'
@@ -152,6 +137,7 @@ export class PrinterRadar {
             ...this.emptyTelemetry(),
             rawResponse: null,
           }
+          this.syncAuthorizationState(printer, seenAt)
           printer.enforcement = {
             ...printer.enforcement,
             state: 'idle',
@@ -160,6 +146,191 @@ export class PrinterRadar {
         }
       }),
     )
+  }
+
+  private createPrinterRuntime(
+    config: Pick<PrinterStatusSnapshot, 'id' | 'name' | 'ip'>,
+    previous?: PrinterRuntime,
+  ): PrinterRuntime {
+    if (previous) {
+      return {
+        ...previous,
+        id: config.id,
+        name: config.name,
+        ip: config.ip,
+      }
+    }
+
+    return {
+      id: config.id,
+      name: config.name,
+      ip: config.ip,
+      authorization: this.createUnauthorizedAuthorization(),
+      connectivity: {
+        state: 'offline',
+        lastSeenAt: null,
+        lastError: null,
+        lastPort: null,
+      },
+      activity: {
+        state: 'unknown',
+        source: 'm27-status',
+        reason: 'No handshake response received yet.',
+        command: '~M27',
+        rawResponse: null,
+      },
+      telemetry: {
+        command: '~M105',
+        rawResponse: null,
+        nozzle: {
+          current: null,
+          target: null,
+        },
+        bed: {
+          current: null,
+          target: null,
+        },
+      },
+      enforcement: {
+        mode: 'observe-only',
+        state: 'idle',
+        lastAction: 'none',
+        reason: 'Observe-only mode. Abort commands are not enabled in the current backend.',
+      },
+    }
+  }
+
+  private createUnauthorizedAuthorization(): PrinterStatusSnapshot['authorization'] {
+    return {
+      state: 'unauthorized',
+      sessionState: 'idle',
+      grantedAt: null,
+      expiresAt: null,
+      activatedAt: null,
+      studentId: null,
+      cardId: null,
+      firstName: null,
+    }
+  }
+
+  private async refreshPrinterConfigs(force = false) {
+    const now = Date.now()
+    if (!force && now - this.lastPrinterConfigRefreshAt < this.PRINTER_CONFIG_REFRESH_MS) {
+      return
+    }
+
+    this.lastPrinterConfigRefreshAt = now
+
+    try {
+      const { data, error } = await supabase
+        .from('printers')
+        .select('id, name, ip')
+        .order('name', { ascending: true })
+
+      if (error) {
+        throw error
+      }
+
+      const configs = (data ?? [])
+        .map((row) => this.normalizePrinterConfigRow(row))
+        .filter((row): row is Pick<PrinterStatusSnapshot, 'id' | 'name' | 'ip'> => row !== null)
+
+      if (configs.length === 0) {
+        console.warn('[Radar] Supabase returned no usable printers. Keeping the current runtime config.')
+        return
+      }
+
+      this.printers = configs.map((config) => {
+        const previous = this.printers.find(
+          (printer) => printer.id === config.id || printer.ip === config.ip,
+        )
+
+        return this.createPrinterRuntime(config, previous)
+      })
+    } catch (error) {
+      console.error('[Radar] Failed to refresh printers from Supabase. Keeping current config.', error)
+    }
+  }
+
+  private normalizePrinterConfigRow(
+    row: Partial<PrinterConfigRow>,
+  ): Pick<PrinterStatusSnapshot, 'id' | 'name' | 'ip'> | null {
+    const ip = typeof row.ip === 'string' ? row.ip.trim() : ''
+    if (!ip) {
+      return null
+    }
+
+    const rawId = row.id
+    const id = rawId === undefined || rawId === null ? ip : String(rawId)
+    const name = typeof row.name === 'string' && row.name.trim().length > 0
+      ? row.name.trim()
+      : `Printer ${id}`
+
+    return {
+      id,
+      name,
+      ip,
+    }
+  }
+
+  private describeConfiguredPrinters() {
+    return this.printers.map((printer) => `${printer.name} (${printer.ip})`).join(', ')
+  }
+
+  private syncAuthorizationState(printer: PrinterRuntime, nowIso = new Date().toISOString()) {
+    if (printer.authorization.state !== 'authorized') {
+      return
+    }
+
+    const activityIsLive =
+      printer.activity.state === 'heating' || printer.activity.state === 'printing'
+
+    if (printer.authorization.sessionState === 'pending_start' && activityIsLive) {
+      printer.authorization = {
+        ...printer.authorization,
+        sessionState: 'active_print',
+        activatedAt: printer.authorization.activatedAt ?? nowIso,
+        expiresAt: null,
+      }
+      return
+    }
+
+    if (printer.authorization.sessionState === 'active_print') {
+      if (
+        activityIsLive ||
+        printer.activity.state === 'unknown' ||
+        printer.connectivity.state === 'offline'
+      ) {
+        return
+      }
+
+      printer.authorization = this.createUnauthorizedAuthorization()
+      return
+    }
+
+    const expiresAt = printer.authorization.expiresAt
+    if (!expiresAt) {
+      return
+    }
+
+    if (Date.parse(expiresAt) <= Date.parse(nowIso)) {
+      printer.authorization = this.createUnauthorizedAuthorization()
+    }
+  }
+
+  private clonePrinter(printer: PrinterRuntime): PrinterStatusSnapshot {
+    return {
+      ...printer,
+      authorization: { ...printer.authorization },
+      connectivity: { ...printer.connectivity },
+      activity: { ...printer.activity },
+      telemetry: {
+        ...printer.telemetry,
+        nozzle: { ...printer.telemetry.nozzle },
+        bed: { ...printer.telemetry.bed },
+      },
+      enforcement: { ...printer.enforcement },
+    }
   }
 
   private async tryHandshakePorts(
@@ -337,6 +508,8 @@ export class PrinterRadar {
     telemetry: Omit<PrinterStatusSnapshot['telemetry'], 'rawResponse'>,
   ): PrinterStatusSnapshot['activity'] {
     const normalizedResponse = activityResponse?.trim() ?? ''
+    const progress = this.parseM27Progress(normalizedResponse)
+    const temperatureFallback = this.deriveTemperatureActivity(telemetry)
 
     if (normalizedResponse.length > 0) {
       if (/not sd printing|no print job|sd print paused|idle/i.test(normalizedResponse)) {
@@ -350,10 +523,40 @@ export class PrinterRadar {
       }
 
       if (/sd printing byte|printing byte|sd printing|print progress/i.test(normalizedResponse)) {
+        if (this.hasStrongProgressSignal(progress)) {
+          if (temperatureFallback.state === 'heating' || temperatureFallback.state === 'printing') {
+            return {
+              ...temperatureFallback,
+              reason: 'The printer reported active SD print progress and heater targets are active.',
+              command: '~M27',
+              rawResponse: normalizedResponse,
+            }
+          }
+
+          return {
+            state: 'printing',
+            source: 'm27-status',
+            reason: 'The printer reported active SD print progress via ~M27.',
+            command: '~M27',
+            rawResponse: normalizedResponse,
+          }
+        }
+
+        if (temperatureFallback.state === 'idle') {
+          return {
+            state: 'idle',
+            source: 'temperature-heuristic',
+            reason:
+              'The printer reported an SD print placeholder via ~M27, but heater targets are off, so the printer is treated as idle.',
+            command: '~M27',
+            rawResponse: normalizedResponse,
+          }
+        }
+
         return {
-          state: 'printing',
-          source: 'm27-status',
-          reason: 'Printer reported an active print via ~M27.',
+          ...temperatureFallback,
+          reason:
+            'The ~M27 reply looked like a placeholder, so availability followed the live heater targets instead.',
           command: '~M27',
           rawResponse: normalizedResponse,
         }
@@ -375,14 +578,45 @@ export class PrinterRadar {
     const fallbackReasonPrefix = normalizedResponse.length > 0
       ? 'The ~M27 reply did not expose a recognizable print-state string, so activity fell back to temperature telemetry. '
       : 'The ~M27 probe did not return usable state, so activity fell back to temperature telemetry. '
-    const fallback = this.deriveTemperatureActivity(telemetry)
 
     return {
-      ...fallback,
-      reason: `${fallbackReasonPrefix}${fallback.reason}`,
+      ...temperatureFallback,
+      reason: `${fallbackReasonPrefix}${temperatureFallback.reason}`,
       command: '~M27',
       rawResponse: normalizedResponse || null,
     }
+  }
+
+  private parseM27Progress(response: string) {
+    const byteMatch = response.match(/printing byte\s+(\d+)\s*\/\s*(\d+)/i)
+    const layerMatch = response.match(/layer:\s*(\d+)\s*\/\s*(\d+)/i)
+
+    return {
+      bytesCurrent: byteMatch ? Number.parseInt(byteMatch[1], 10) : null,
+      bytesTotal: byteMatch ? Number.parseInt(byteMatch[2], 10) : null,
+      layerCurrent: layerMatch ? Number.parseInt(layerMatch[1], 10) : null,
+      layerTotal: layerMatch ? Number.parseInt(layerMatch[2], 10) : null,
+    }
+  }
+
+  private hasStrongProgressSignal(progress: {
+    bytesCurrent: number | null
+    bytesTotal: number | null
+    layerCurrent: number | null
+    layerTotal: number | null
+  }) {
+    const byteProgress =
+      progress.bytesCurrent !== null &&
+      progress.bytesTotal !== null &&
+      progress.bytesTotal > 0 &&
+      progress.bytesCurrent > 0
+    const layerProgress =
+      progress.layerCurrent !== null &&
+      progress.layerTotal !== null &&
+      progress.layerTotal > 0 &&
+      progress.layerCurrent > 0
+
+    return byteProgress || layerProgress
   }
 
   private deriveTemperatureActivity(
@@ -428,13 +662,30 @@ export class PrinterRadar {
     return `${telemetry.current}/${telemetry.target}`
   }
 
-  public authorize(printerId: string) {
+  public authorize(printerId: string, request: AuthorizationRequest = {}) {
     const printer = this.printers.find((item) => item.id === printerId)
     if (!printer) {
       return false
     }
 
-    printer.authorization.state = 'authorized'
+    const requestedMinutes =
+      typeof request.durationMinutes === 'number' && Number.isFinite(request.durationMinutes)
+        ? request.durationMinutes
+        : this.DEFAULT_SESSION_MINUTES
+    const durationMinutes = Math.min(Math.max(requestedMinutes, 1), 30)
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000).toISOString()
+
+    printer.authorization = {
+      state: 'authorized',
+      sessionState: 'pending_start',
+      grantedAt: now.toISOString(),
+      expiresAt,
+      activatedAt: null,
+      studentId: request.studentId?.trim() || null,
+      cardId: request.cardId?.trim() || null,
+      firstName: request.firstName?.trim() || null,
+    }
     return true
   }
 
@@ -444,11 +695,16 @@ export class PrinterRadar {
       return false
     }
 
-    printer.authorization.state = 'unauthorized'
+    printer.authorization = this.createUnauthorizedAuthorization()
     return true
   }
 
   public getStatus(): PrinterStatusSnapshot[] {
-    return this.printers.map((printer) => ({ ...printer }))
+    const nowIso = new Date().toISOString()
+    this.printers.forEach((printer) => {
+      this.syncAuthorizationState(printer, nowIso)
+    })
+
+    return this.printers.map((printer) => this.clonePrinter(printer))
   }
 }

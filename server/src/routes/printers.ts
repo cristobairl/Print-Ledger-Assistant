@@ -8,7 +8,7 @@ router.get('/status', (req, res) => {
 })
 
 router.post('/:printerId/authorize', (req, res) => {
-  const updated = radar.authorize(req.params.printerId)
+  const updated = radar.authorize(req.params.printerId, req.body ?? {})
   if (!updated) {
     return res.status(404).json({ error: 'Printer not found' })
   }

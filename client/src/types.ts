@@ -1,6 +1,7 @@
 export type LandingState = {
   firstName?: string
   cardId?: string
+  studentId?: string
   isAdmin?: boolean
   created?: boolean
 }
@@ -11,6 +12,13 @@ export type Printer = {
   ip: string
   authorization: {
     state: 'authorized' | 'unauthorized'
+    sessionState: 'idle' | 'pending_start' | 'active_print'
+    grantedAt: string | null
+    expiresAt: string | null
+    activatedAt: string | null
+    studentId: string | null
+    cardId: string | null
+    firstName: string | null
   }
   connectivity: {
     state: 'online' | 'offline'
@@ -43,6 +51,21 @@ export type Printer = {
     lastAction: 'none'
     reason: string
   }
+}
+
+export type StudentJob = {
+  id: string
+  studentId: string | null
+  printerId: string | null
+  fileName: string | null
+  fileSize: number | string | null
+  estimatedTime: number | string | null
+  estimatedWeightGrams: number | string | null
+  jobReason: string | null
+  startedAt: string | null
+  endedAt: string | null
+  createdAt: string | null
+  status: string | null
 }
 
 export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped'

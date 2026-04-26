@@ -1,4 +1,5 @@
 export type AuthorizationState = 'authorized' | 'unauthorized'
+export type AuthorizationSessionState = 'idle' | 'pending_start' | 'active_print'
 export type ConnectivityState = 'online' | 'offline'
 export type ActivityState = 'idle' | 'heating' | 'printing' | 'unknown'
 export type EnforcementMode = 'observe-only'
@@ -16,6 +17,13 @@ export type PrinterStatusSnapshot = {
   ip: string
   authorization: {
     state: AuthorizationState
+    sessionState: AuthorizationSessionState
+    grantedAt: string | null
+    expiresAt: string | null
+    activatedAt: string | null
+    studentId: string | null
+    cardId: string | null
+    firstName: string | null
   }
   connectivity: {
     state: ConnectivityState
