@@ -46,9 +46,9 @@ export type Printer = {
     }
   }
   enforcement: {
-    mode: 'observe-only'
-    state: 'idle' | 'monitoring'
-    lastAction: 'none'
+    mode: 'auto-snipe'
+    state: 'idle' | 'monitoring' | 'aborting' | 'aborted' | 'error'
+    lastAction: 'none' | 'abort_sent' | 'abort_failed'
     reason: string
   }
 }

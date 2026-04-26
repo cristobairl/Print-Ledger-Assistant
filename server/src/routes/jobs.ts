@@ -22,8 +22,6 @@ type CreateJobBody = {
   studentId?: string
   printerId?: string
   fileName?: string
-  fileSizeMb?: number | string
-  estimatedTimeMinutes?: number | string
   estimatedWeightGrams?: number | string
   jobReason?: string
 }
@@ -55,8 +53,6 @@ router.post('/', async (req, res) => {
   const printerId = body.printerId?.trim()
   const fileName = body.fileName?.trim()
   const jobReason = body.jobReason?.trim()
-  const fileSizeMb = toPositiveNumber(body.fileSizeMb)
-  const estimatedTimeMinutes = toPositiveNumber(body.estimatedTimeMinutes)
   const estimatedWeightGrams = toPositiveNumber(body.estimatedWeightGrams)
 
   if (!studentId) {
@@ -71,14 +67,6 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'File name is required.' })
   }
 
-  if (fileSizeMb === null) {
-    return res.status(400).json({ error: 'File size must be a number greater than zero.' })
-  }
-
-  if (estimatedTimeMinutes === null) {
-    return res.status(400).json({ error: 'Estimated time must be a number greater than zero.' })
-  }
-
   if (estimatedWeightGrams === null) {
     return res.status(400).json({ error: 'Estimated weight must be a number greater than zero.' })
   }
@@ -91,11 +79,13 @@ router.post('/', async (req, res) => {
     student_id: studentId,
     printer_id: printerId,
     file_name: fileName,
-    file_size: Math.round(fileSizeMb * 1024 * 1024),
-    estimated_time: formatEstimatedTimeLabel(estimatedTimeMinutes),
+    file_size: null,
+    estimated_time: null,
     estimated_weight_grams: Number(estimatedWeightGrams.toFixed(2)),
     job_reason: jobReason,
     status: 'queued',
+    started_at: null,
+    ended_at: null,
   }
 
   const { data, error } = await supabase
@@ -107,6 +97,7 @@ router.post('/', async (req, res) => {
     .single()
 
   if (error || !data) {
+    console.error('[Jobs] Failed to create job record.', error)
     return res.status(500).json({ error: 'Failed to create the job record.' })
   }
 
@@ -143,22 +134,6 @@ function toPositiveNumber(value: number | string | undefined) {
   }
 
   return null
-}
-
-function formatEstimatedTimeLabel(totalMinutes: number) {
-  const roundedMinutes = Math.max(1, Math.round(totalMinutes))
-  const hours = Math.floor(roundedMinutes / 60)
-  const minutes = roundedMinutes % 60
-
-  if (hours === 0) {
-    return `${minutes} min`
-  }
-
-  if (minutes === 0) {
-    return `${hours} hr`
-  }
-
-  return `${hours} hr ${minutes} min`
 }
 
 export default router

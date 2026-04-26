@@ -175,6 +175,7 @@
 
 .student-topbar,
 .student-hero,
+.session-guard,
 .student-details-panel,
 .student-session-panel,
 .student-printer-panel,
@@ -194,6 +195,77 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px;
+}
+
+.session-guard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.session-guard__copy,
+.session-guard__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.session-guard__copy {
+  min-width: 0;
+}
+
+.session-guard__eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.session-guard__message {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.98rem;
+}
+
+.session-guard__actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.session-guard__timer {
+  display: grid;
+  gap: 6px;
+  min-width: 136px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(23, 35, 31, 0.04);
+  border: 1px solid rgba(23, 35, 31, 0.08);
+}
+
+.session-guard__timer strong {
+  color: var(--text-strong);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.session-guard__button {
+  border: 0;
+  border-radius: 8px;
+  min-height: 52px;
+  padding: 0 18px;
+  background: rgba(23, 35, 31, 0.88);
+  color: #f4f7f2;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.session-guard__button:disabled {
+  cursor: default;
+  background: #7e8d94;
 }
 
 .student-brand {
@@ -270,12 +342,6 @@
 .student-field {
   display: grid;
   gap: 8px;
-}
-
-.student-time-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
 }
 
 .student-field--full {
@@ -1042,7 +1108,10 @@
   }
 
   .student-topbar,
-  .student-footer {
+  .student-footer,
+  .session-guard,
+  .session-guard__copy,
+  .session-guard__actions {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -1058,10 +1127,6 @@
   }
 
   .student-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .student-time-grid {
     grid-template-columns: 1fr;
   }
 

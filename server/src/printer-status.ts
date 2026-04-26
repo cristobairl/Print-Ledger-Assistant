@@ -2,8 +2,8 @@ export type AuthorizationState = 'authorized' | 'unauthorized'
 export type AuthorizationSessionState = 'idle' | 'pending_start' | 'active_print'
 export type ConnectivityState = 'online' | 'offline'
 export type ActivityState = 'idle' | 'heating' | 'printing' | 'unknown'
-export type EnforcementMode = 'observe-only'
-export type EnforcementState = 'idle' | 'monitoring'
+export type EnforcementMode = 'auto-snipe'
+export type EnforcementState = 'idle' | 'monitoring' | 'aborting' | 'aborted' | 'error'
 export type ActivitySource = 'm27-status' | 'temperature-heuristic'
 
 export type TemperatureTelemetry = {
@@ -47,7 +47,7 @@ export type PrinterStatusSnapshot = {
   enforcement: {
     mode: EnforcementMode
     state: EnforcementState
-    lastAction: 'none'
+    lastAction: 'none' | 'abort_sent' | 'abort_failed'
     reason: string
   }
 }

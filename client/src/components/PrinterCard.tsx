@@ -78,8 +78,11 @@ export function PrinterCard({ printer, onAuthorizationChange }: PrinterCardProps
           </div>
           <div>
             <p className="label">Enforcement</p>
-            <p className="value value--compact">{printer.enforcement.mode}</p>
+            <p className="value value--compact">{formatEnforcement(printer)}</p>
             <p className="detail">{printer.enforcement.reason}</p>
+            {printer.enforcement.lastAction !== 'none' ? (
+              <p className="detail">Last action: {printer.enforcement.lastAction}</p>
+            ) : null}
           </div>
         </div>
 
@@ -127,4 +130,24 @@ function formatTemperature(current: number | null, target: number | null) {
   }
 
   return `${current.toFixed(1)} / ${target.toFixed(1)} C`
+}
+
+function formatEnforcement(printer: Printer) {
+  if (printer.enforcement.state === 'idle') {
+    return 'Auto-snipe armed'
+  }
+
+  if (printer.enforcement.state === 'monitoring') {
+    return 'Watching'
+  }
+
+  if (printer.enforcement.state === 'aborting') {
+    return 'Abort sent'
+  }
+
+  if (printer.enforcement.state === 'aborted') {
+    return 'Abort completed'
+  }
+
+  return 'Abort error'
 }

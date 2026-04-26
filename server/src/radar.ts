@@ -2,7 +2,12 @@ import * as net from 'net'
 import { supabase } from './db'
 import type { PrinterStatusSnapshot, TemperatureTelemetry } from './printer-status'
 
-type PrinterRuntime = PrinterStatusSnapshot
+type PrinterRuntime = PrinterStatusSnapshot & {
+  enforcementRuntime: {
+    incidentActive: boolean
+    lastAbortAttemptAt: number | null
+  }
+}
 type PrinterConfigRow = {
   id: string | number
   ip: string | null
@@ -24,10 +29,12 @@ export class PrinterRadar {
     }),
   ]
   private interval: NodeJS.Timeout | null = null
-  private readonly POLL_INTERVAL = 2000
+  private readonly POLL_INTERVAL = 1000
   private readonly PRINTER_PORTS = [8899, 8000]
   private readonly PRINTER_CONFIG_REFRESH_MS = 10000
-  private readonly DEFAULT_SESSION_MINUTES = 5
+  private readonly DEFAULT_SESSION_MINUTES = 2
+  private readonly ABORT_COMMAND = '~M26'
+  private readonly ABORT_RETRY_COOLDOWN_MS = 10000
   private lastPrinterConfigRefreshAt = 0
 
   async start() {
@@ -105,12 +112,7 @@ export class PrinterRadar {
           }
           printer.activity = activity
           this.syncAuthorizationState(printer, seenAt)
-          printer.enforcement = {
-            ...printer.enforcement,
-            state: activity.state === 'printing' && printer.authorization.state === 'unauthorized'
-              ? 'monitoring'
-              : 'idle',
-          }
+          await this.updateEnforcement(printer, seenAt)
 
           console.log(
             `[Radar] Activity response from ${printer.name}: ${activity.rawResponse ?? '(empty)'}`,
@@ -138,10 +140,7 @@ export class PrinterRadar {
             rawResponse: null,
           }
           this.syncAuthorizationState(printer, seenAt)
-          printer.enforcement = {
-            ...printer.enforcement,
-            state: 'idle',
-          }
+          this.updateEnforcementWhenOffline(printer)
           console.error(`[Radar] Diagnostics failed for ${printer.name} (${printer.ip})`, error)
         }
       }),
@@ -158,6 +157,7 @@ export class PrinterRadar {
         id: config.id,
         name: config.name,
         ip: config.ip,
+        enforcementRuntime: { ...previous.enforcementRuntime },
       }
     }
 
@@ -192,10 +192,14 @@ export class PrinterRadar {
         },
       },
       enforcement: {
-        mode: 'observe-only',
+        mode: 'auto-snipe',
         state: 'idle',
         lastAction: 'none',
-        reason: 'Observe-only mode. Abort commands are not enabled in the current backend.',
+        reason: 'Auto-snipe is armed. Unauthorized bed heating or print activity will receive ~M26 once per incident.',
+      },
+      enforcementRuntime: {
+        incidentActive: false,
+        lastAbortAttemptAt: null,
       },
     }
   }
@@ -320,7 +324,9 @@ export class PrinterRadar {
 
   private clonePrinter(printer: PrinterRuntime): PrinterStatusSnapshot {
     return {
-      ...printer,
+      id: printer.id,
+      name: printer.name,
+      ip: printer.ip,
       authorization: { ...printer.authorization },
       connectivity: { ...printer.connectivity },
       activity: { ...printer.activity },
@@ -330,6 +336,136 @@ export class PrinterRadar {
         bed: { ...printer.telemetry.bed },
       },
       enforcement: { ...printer.enforcement },
+    }
+  }
+
+  private async updateEnforcement(printer: PrinterRuntime, nowIso: string) {
+    const unauthorizedActivity =
+      printer.authorization.state === 'unauthorized' &&
+      (printer.activity.state === 'heating' || printer.activity.state === 'printing')
+
+    if (!unauthorizedActivity) {
+      if (printer.enforcementRuntime.incidentActive && printer.activity.state === 'idle') {
+        printer.enforcement = {
+          mode: 'auto-snipe',
+          state: 'aborted',
+          lastAction: 'abort_sent',
+          reason: 'The printer returned to idle after the watchdog sent ~M26.',
+        }
+        printer.enforcementRuntime.incidentActive = false
+        printer.enforcementRuntime.lastAbortAttemptAt = null
+        return
+      }
+
+      if (printer.authorization.state === 'authorized') {
+        printer.enforcementRuntime.incidentActive = false
+        printer.enforcementRuntime.lastAbortAttemptAt = null
+        printer.enforcement = {
+          mode: 'auto-snipe',
+          state: 'idle',
+          lastAction: printer.enforcement.lastAction,
+          reason: 'Printer is authorized. Auto-snipe is armed but inactive for this session.',
+        }
+        return
+      }
+
+      if (printer.activity.state === 'idle') {
+        printer.enforcementRuntime.lastAbortAttemptAt = null
+      }
+
+      printer.enforcement = {
+        mode: 'auto-snipe',
+        state: 'idle',
+        lastAction: printer.enforcement.lastAction,
+        reason: 'Auto-snipe is armed. Unauthorized bed heating or print activity will receive ~M26 once per incident.',
+      }
+      return
+    }
+
+    if (printer.enforcementRuntime.incidentActive) {
+        printer.enforcement = {
+          mode: 'auto-snipe',
+          state: 'aborting',
+          lastAction: 'abort_sent',
+          reason: 'Unauthorized printer activity detected. The watchdog already sent ~M26 and is waiting for the printer to return to idle.',
+        }
+      return
+    }
+
+    const nowMs = Date.now()
+    if (
+      printer.enforcement.lastAction === 'abort_failed' &&
+      printer.enforcementRuntime.lastAbortAttemptAt !== null &&
+      nowMs - printer.enforcementRuntime.lastAbortAttemptAt < this.ABORT_RETRY_COOLDOWN_MS
+    ) {
+      const retrySeconds = Math.max(
+        1,
+        Math.ceil(
+          (this.ABORT_RETRY_COOLDOWN_MS - (nowMs - printer.enforcementRuntime.lastAbortAttemptAt)) / 1000,
+        ),
+      )
+      printer.enforcement = {
+        mode: 'auto-snipe',
+        state: 'error',
+        lastAction: 'abort_failed',
+        reason: `Unauthorized printer activity detected, but the last ~M26 attempt failed. Retrying in about ${retrySeconds} second${retrySeconds === 1 ? '' : 's'}.`,
+      }
+      return
+    }
+
+    printer.enforcement = {
+      mode: 'auto-snipe',
+      state: 'aborting',
+      lastAction: printer.enforcement.lastAction,
+      reason: `Unauthorized ${printer.activity.state} detected. Sending ~M26 now.`,
+    }
+    printer.enforcementRuntime.lastAbortAttemptAt = nowMs
+
+    const abortProbe = await this.tryProbe(
+      printer.ip,
+      this.ABORT_COMMAND,
+      this.getPortOrder(printer.connectivity.lastPort),
+    )
+
+    if (abortProbe.ok) {
+      printer.connectivity = {
+        ...printer.connectivity,
+        lastPort: abortProbe.port,
+      }
+      printer.enforcementRuntime.incidentActive = true
+      printer.enforcement = {
+        mode: 'auto-snipe',
+        state: 'aborting',
+        lastAction: 'abort_sent',
+        reason: `Unauthorized ${printer.activity.state} detected. Sent ~M26 on port ${abortProbe.port}; waiting for the printer to settle back to idle.`,
+      }
+      return
+    }
+
+    printer.enforcement = {
+      mode: 'auto-snipe',
+      state: 'error',
+      lastAction: 'abort_failed',
+      reason: `Unauthorized ${printer.activity.state} detected, but ~M26 failed: ${abortProbe.error}`,
+    }
+  }
+
+  private updateEnforcementWhenOffline(printer: PrinterRuntime) {
+    if (printer.enforcementRuntime.incidentActive) {
+      printer.enforcement = {
+        mode: 'auto-snipe',
+        state: 'aborting',
+        lastAction: 'abort_sent',
+        reason: 'The watchdog already sent ~M26 for this incident. Waiting for the printer to reconnect or return to idle.',
+      }
+      return
+    }
+
+    printer.enforcement = {
+      mode: 'auto-snipe',
+      state: 'idle',
+      lastAction: printer.enforcement.lastAction,
+      reason: 'Printer is offline, so auto-snipe cannot evaluate a new print right now.',
     }
   }
 
@@ -622,35 +758,31 @@ export class PrinterRadar {
   private deriveTemperatureActivity(
     telemetry: Omit<PrinterStatusSnapshot['telemetry'], 'rawResponse'>,
   ): Omit<PrinterStatusSnapshot['activity'], 'command' | 'rawResponse'> {
-    const nozzleTarget = telemetry.nozzle.target ?? 0
     const bedTarget = telemetry.bed.target ?? 0
-    const nozzleCurrent = telemetry.nozzle.current
     const bedCurrent = telemetry.bed.current
-    const maxTarget = Math.max(nozzleTarget, bedTarget)
 
-    if (maxTarget <= 0) {
+    if (bedTarget <= 0) {
       return {
         state: 'idle',
         source: 'temperature-heuristic',
-        reason: 'No nozzle or bed target temperature is set.',
+        reason: 'No bed target temperature is set.',
       }
     }
 
-    const nozzleHeating = nozzleCurrent !== null && nozzleTarget > 0 && nozzleCurrent + 2 < nozzleTarget
-    const bedHeating = bedCurrent !== null && bedTarget > 0 && bedCurrent + 2 < bedTarget
+    const bedHeating = bedCurrent === null || bedCurrent + 2 < bedTarget
 
-    if (nozzleHeating || bedHeating) {
+    if (bedHeating) {
       return {
         state: 'heating',
         source: 'temperature-heuristic',
-        reason: 'A heater target is set and the printer is still warming toward that target.',
+        reason: 'A bed target is set and the printer is still warming toward that target.',
       }
     }
 
     return {
       state: 'printing',
       source: 'temperature-heuristic',
-      reason: 'Heater targets are active and current temperatures are near those targets.',
+      reason: 'The bed target is active and the current bed temperature is near that target.',
     }
   }
 

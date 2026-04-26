@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import type { LandingState, Printer, StudentJob } from '../types'
 
-const SESSION_MINUTES = 5
+const SESSION_MINUTES = 2
+const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000
 type StudentJobFormState = {
   studentIdentifier: string
   fileName: string
-  fileSizeMb: string
-  estimatedTimeHours: string
-  estimatedTimeMinutes: string
   estimatedWeightGrams: string
   jobReason: string
 }
@@ -24,6 +22,7 @@ export function StudentLanding() {
   const location = useLocation()
   const state = (location.state as LandingState | null) ?? null
   const [nowMs, setNowMs] = useState(() => Date.now())
+  const [lastInteractionMs, setLastInteractionMs] = useState(() => Date.now())
   const [printers, setPrinters] = useState<Printer[]>([])
   const [printerError, setPrinterError] = useState<string | null>(null)
   const [selectedPrinterId, setSelectedPrinterId] = useState('')
@@ -34,6 +33,7 @@ export function StudentLanding() {
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [jobForm, setJobForm] = useState<StudentJobFormState>(() => createJobFormState(state))
   const [jobFormSubmitted, setJobFormSubmitted] = useState(false)
+  const [closingSession, setClosingSession] = useState(false)
 
   if (!state?.firstName) {
     return <Navigate to="/kiosk" replace />
@@ -46,6 +46,23 @@ export function StudentLanding() {
 
     return () => {
       window.clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    const markInteraction = () => {
+      setLastInteractionMs(Date.now())
+    }
+
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'focusin']
+    events.forEach((eventName) => {
+      window.addEventListener(eventName, markInteraction)
+    })
+
+    return () => {
+      events.forEach((eventName) => {
+        window.removeEventListener(eventName, markInteraction)
+      })
     }
   }, [])
 
@@ -167,6 +184,7 @@ export function StudentLanding() {
   const jobFormErrors = getJobFormErrors(jobForm)
   const isJobFormComplete = Object.values(jobFormErrors).every((error) => error === null)
   const timeLabel = formatClock(new Date(nowMs))
+  const inactivityRemainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - (nowMs - lastInteractionMs))
   const availablePrinters = displayPrinters.filter(
     (printer) => mapPrinterAvailability(printer, state).selectable,
   )
@@ -185,6 +203,14 @@ export function StudentLanding() {
     !hasLiveSession &&
     sessionRequestState !== 'submitting'
 
+  useEffect(() => {
+    if (inactivityRemainingMs > 0 || closingSession) {
+      return
+    }
+
+    void handleCloseSession('auto')
+  }, [closingSession, inactivityRemainingMs])
+
   function updateJobForm<Key extends keyof StudentJobFormState>(
     key: Key,
     value: StudentJobFormState[Key],
@@ -192,6 +218,36 @@ export function StudentLanding() {
     setJobForm((current) => ({ ...current, [key]: value }))
     if (sessionError) {
       setSessionError(null)
+    }
+  }
+
+  async function handleCloseSession(reason: 'manual' | 'auto') {
+    if (closingSession) {
+      return
+    }
+
+    setClosingSession(true)
+
+    try {
+      if (
+        currentSessionPrinter?.authorization.state === 'authorized' &&
+        currentSessionPrinter.authorization.sessionState === 'pending_start'
+      ) {
+        await fetch(
+          `http://localhost:3000/printers/${encodeURIComponent(currentSessionPrinter.id)}/deauthorize`,
+          {
+            method: 'POST',
+          },
+        )
+      }
+    } catch (closeError) {
+      console.error('[StudentLanding] Failed to release pending printer reservation during close.', closeError)
+    } finally {
+      if (reason === 'auto') {
+        navigate('/kiosk', { replace: true, state: { timeout: true } })
+      } else {
+        navigate('/kiosk', { replace: true })
+      }
     }
   }
 
@@ -220,8 +276,6 @@ export function StudentLanding() {
           studentId: state.studentId,
           printerId: selectedPrinter.id,
           fileName: jobForm.fileName.trim(),
-          fileSizeMb: jobForm.fileSizeMb,
-          estimatedTimeMinutes: getEstimatedTimeTotalMinutes(jobForm),
           estimatedWeightGrams: jobForm.estimatedWeightGrams,
           jobReason: jobForm.jobReason.trim(),
         }),
@@ -299,6 +353,32 @@ export function StudentLanding() {
           </div>
         </header>
 
+        <section className="session-guard">
+          <div className="session-guard__copy">
+            <p className="session-guard__eyebrow">Kiosk session</p>
+            <p className="session-guard__message">
+              Session will be closed automatically in {formatCountdown(inactivityRemainingMs)} if this screen stays inactive.
+            </p>
+          </div>
+
+          <div className="session-guard__actions">
+            <div className="session-guard__timer" aria-live="polite">
+              <span className="label">Auto close</span>
+              <strong>{formatCountdown(inactivityRemainingMs)}</strong>
+            </div>
+            <button
+              type="button"
+              className="session-guard__button"
+              disabled={closingSession}
+              onClick={() => {
+                void handleCloseSession('manual')
+              }}
+            >
+              {closingSession ? 'Closing Session...' : 'Close Session'}
+            </button>
+          </div>
+        </section>
+
         <section className="student-details-panel">
           <div className="student-details-panel__top">
             <div className="student-details-panel__identity">
@@ -321,7 +401,7 @@ export function StudentLanding() {
               <p className="section-heading__eyebrow">Print details</p>
               <h2>Enter your job information</h2>
               <p className="printer-page__lead">
-                These fields create the student log entry. The printer session stays locked until every required field is filled in.
+                Enter the file name, print weight, and job reason here. File size, estimated time, and printer timestamps will be filled in by the system when that data is available.
               </p>
             </div>
           </div>
@@ -353,56 +433,6 @@ export function StudentLanding() {
                 <span className="student-field__error">{jobFormErrors.fileName}</span>
               ) : null}
             </label>
-
-            <NumericField
-              label="File Size (MB)"
-              value={jobForm.fileSizeMb}
-              disabled={hasLiveSession || sessionRequestState === 'submitting'}
-              placeholder="12.5"
-              options={{ step: 0.5, min: 0.5, decimals: 1 }}
-              hint="Scroll, tap +/-, or type."
-              error={jobFormSubmitted ? jobFormErrors.fileSizeMb : null}
-              onChange={(value) => {
-                updateJobForm('fileSizeMb', value)
-              }}
-            />
-
-            <div className="student-field">
-              <span className="student-field__label">Estimated Time</span>
-              <div className="student-time-grid">
-                <NumericField
-                  label="Hours"
-                  hideLabel
-                  value={jobForm.estimatedTimeHours}
-                  disabled={hasLiveSession || sessionRequestState === 'submitting'}
-                  placeholder="0"
-                  options={{ step: 1, min: 0, max: 24, decimals: 0 }}
-                  hint="Hours"
-                  error={null}
-                  onChange={(value) => {
-                    updateJobForm('estimatedTimeHours', value)
-                  }}
-                />
-                <NumericField
-                  label="Minutes"
-                  hideLabel
-                  value={jobForm.estimatedTimeMinutes}
-                  disabled={hasLiveSession || sessionRequestState === 'submitting'}
-                  placeholder="0"
-                  options={{ step: 15, min: 0, max: 59, decimals: 0 }}
-                  hint="Minutes"
-                  error={null}
-                  onChange={(value) => {
-                    updateJobForm('estimatedTimeMinutes', value)
-                  }}
-                />
-              </div>
-              {jobFormSubmitted && jobFormErrors.estimatedTime ? (
-                <span className="student-field__error">{jobFormErrors.estimatedTime}</span>
-              ) : (
-                <span className="student-field__hint">Set the print length using hours and minutes.</span>
-              )}
-            </div>
 
             <NumericField
               label="Estimated Weight (grams)"
@@ -622,7 +652,7 @@ function getSessionCopy({
     return {
       eyebrow: 'Starting session',
       title: `Saving job details for ${selectedPrinter.name}`,
-      detail: 'Stay on this screen while the job record is saved and the kiosk opens your five-minute print window.',
+      detail: `Stay on this screen while the job record is saved and the kiosk opens your ${SESSION_MINUTES}-minute print window.`,
     }
   }
 
@@ -646,7 +676,7 @@ function getSessionCopy({
     return {
       eyebrow: 'Complete the checklist',
       title: 'Add your print details first',
-      detail: 'Fill in the file name, size, time, weight, and job reason before the session can be armed.',
+      detail: 'Fill in the file name, print weight, and job reason before the session can be armed.',
     }
   }
 
@@ -721,10 +751,10 @@ function getFallbackPrinters(): Printer[] {
       },
     },
     enforcement: {
-      mode: 'observe-only',
+      mode: 'auto-snipe',
       state: 'idle',
       lastAction: 'none',
-      reason: 'Watchdog status unavailable.',
+      reason: 'Auto-snipe status unavailable.',
     },
   }))
 }
@@ -803,26 +833,14 @@ function createJobFormState(state: LandingState | null): StudentJobFormState {
   return {
     studentIdentifier: state?.cardId ?? state?.studentId ?? 'Unknown student',
     fileName: '',
-    fileSizeMb: '',
-    estimatedTimeHours: '',
-    estimatedTimeMinutes: '',
     estimatedWeightGrams: '',
     jobReason: '',
   }
 }
 
 function getJobFormErrors(form: StudentJobFormState) {
-  const totalEstimatedMinutes = getEstimatedTimeTotalMinutes(form)
-
   return {
     fileName: form.fileName.trim().length > 0 ? null : 'Enter the file name.',
-    fileSizeMb: isPositiveNumericString(form.fileSizeMb)
-      ? null
-      : 'Enter the file size in megabytes.',
-    estimatedTime:
-      totalEstimatedMinutes > 0 && isValidMinutePart(form.estimatedTimeMinutes)
-        ? null
-        : 'Enter a duration using hours and minutes.',
     estimatedWeightGrams: isPositiveNumericString(form.estimatedWeightGrams)
       ? null
       : 'Enter the estimated weight in grams.',
@@ -927,7 +945,7 @@ function formatCountdown(remainingMs: number) {
 function formatFileSize(value: number | string | null) {
   const parsed = toNumber(value)
   if (parsed === null) {
-    return value ? String(value) : 'Unknown'
+    return value ? String(value) : 'Pending system data'
   }
 
   const units = ['B', 'KB', 'MB', 'GB']
@@ -945,7 +963,7 @@ function formatFileSize(value: number | string | null) {
 
 function formatEstimatedTime(value: number | string | null) {
   if (value === null || value === '') {
-    return 'Unknown'
+    return 'Pending system data'
   }
 
   if (typeof value === 'number') {
@@ -1043,22 +1061,4 @@ function clampNumeric(value: number, options: NumericFieldOptions) {
   }
 
   return boundedLow
-}
-
-function getEstimatedTimeTotalMinutes(form: Pick<StudentJobFormState, 'estimatedTimeHours' | 'estimatedTimeMinutes'>) {
-  const hours = Number.parseInt(form.estimatedTimeHours.trim() || '0', 10)
-  const minutes = Number.parseInt(form.estimatedTimeMinutes.trim() || '0', 10)
-  const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 0
-  const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, 59) : 0
-
-  return safeHours * 60 + safeMinutes
-}
-
-function isValidMinutePart(value: string) {
-  if (value.trim().length === 0) {
-    return true
-  }
-
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 59
 }

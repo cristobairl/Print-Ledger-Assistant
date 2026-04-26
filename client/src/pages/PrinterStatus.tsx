@@ -74,7 +74,8 @@ export function PrinterStatus() {
             <p className="printer-page__lead">
               This view shows the exact `~M27` activity reply and `~M105` telemetry
               reply the backend received. If either raw reply updates here, the printer
-              is sending data back to your PC on the watchdog connection.
+              is sending data back to your PC on the watchdog connection, and unauthorized
+              bed heating or print activity will trigger one `~M26` auto-snipe attempt.
             </p>
           </div>
         </div>
@@ -82,15 +83,15 @@ export function PrinterStatus() {
         <div className="hero-stats">
           <article>
             <span>Watchdog cadence</span>
-            <strong>2 sec</strong>
+            <strong>1 sec</strong>
           </article>
           <article>
             <span>Online printers</span>
             <strong>{printers.filter((printer) => printer.connectivity.state === 'online').length}</strong>
           </article>
           <article>
-            <span>Observe-only</span>
-            <strong>{printers.filter((printer) => printer.enforcement.mode === 'observe-only').length}</strong>
+            <span>Auto-snipe armed</span>
+            <strong>{printers.filter((printer) => printer.enforcement.mode === 'auto-snipe').length}</strong>
           </article>
         </div>
 

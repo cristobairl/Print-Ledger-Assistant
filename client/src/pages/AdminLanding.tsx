@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import type { LandingState, Printer } from '../types'
 
+const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000
+
 export function AdminLanding() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = (location.state as LandingState | null) ?? null
-  const [timeLabel, setTimeLabel] = useState(() => formatClock(new Date()))
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [lastInteractionMs, setLastInteractionMs] = useState(() => Date.now())
   const [printers, setPrinters] = useState<Printer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [closingSession, setClosingSession] = useState(false)
 
   if (!state?.firstName) {
     return <Navigate to="/kiosk" replace />
@@ -21,11 +25,28 @@ export function AdminLanding() {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setTimeLabel(formatClock(new Date()))
+      setNowMs(Date.now())
     }, 1000)
 
     return () => {
       window.clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    const markInteraction = () => {
+      setLastInteractionMs(Date.now())
+    }
+
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'focusin']
+    events.forEach((eventName) => {
+      window.addEventListener(eventName, markInteraction)
+    })
+
+    return () => {
+      events.forEach((eventName) => {
+        window.removeEventListener(eventName, markInteraction)
+      })
     }
   }, [])
 
@@ -76,7 +97,7 @@ export function AdminLanding() {
     const available = printers.filter(
       (printer) => printer.connectivity.state === 'online' && printer.activity.state === 'idle',
     ).length
-    const monitored = printers.filter((printer) => printer.enforcement.state === 'monitoring').length
+    const monitored = printers.filter((printer) => printer.enforcement.state !== 'idle').length
 
     return {
       online,
@@ -85,7 +106,26 @@ export function AdminLanding() {
     }
   }, [printers])
 
-  const monitoredPrinters = printers.filter((printer) => printer.enforcement.state === 'monitoring')
+  const monitoredPrinters = printers.filter((printer) => printer.enforcement.state !== 'idle')
+  const timeLabel = formatClock(new Date(nowMs))
+  const inactivityRemainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - (nowMs - lastInteractionMs))
+
+  useEffect(() => {
+    if (inactivityRemainingMs > 0 || closingSession) {
+      return
+    }
+
+    void handleCloseSession()
+  }, [closingSession, inactivityRemainingMs])
+
+  async function handleCloseSession() {
+    if (closingSession) {
+      return
+    }
+
+    setClosingSession(true)
+    navigate('/kiosk', { replace: true })
+  }
 
   return (
     <main className="admin-screen">
@@ -102,6 +142,32 @@ export function AdminLanding() {
             {timeLabel}
           </div>
         </header>
+
+        <section className="session-guard">
+          <div className="session-guard__copy">
+            <p className="session-guard__eyebrow">Kiosk session</p>
+            <p className="session-guard__message">
+              Session will be closed automatically in {formatCountdown(inactivityRemainingMs)} if this screen stays inactive.
+            </p>
+          </div>
+
+          <div className="session-guard__actions">
+            <div className="session-guard__timer" aria-live="polite">
+              <span className="label">Auto close</span>
+              <strong>{formatCountdown(inactivityRemainingMs)}</strong>
+            </div>
+            <button
+              type="button"
+              className="session-guard__button"
+              disabled={closingSession}
+              onClick={() => {
+                void handleCloseSession()
+              }}
+            >
+              {closingSession ? 'Closing Session...' : 'Close Session'}
+            </button>
+          </div>
+        </section>
 
         <section className="admin-hero">
           <div className="admin-hero__copy">
@@ -245,4 +311,13 @@ function mapPrinterAvailability(printer: Printer) {
     label: 'In Use',
     tone: 'busy' as const,
   }
+}
+
+function formatCountdown(remainingMs: number) {
+  const safeMs = Math.max(0, remainingMs)
+  const totalSeconds = Math.ceil(safeMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
