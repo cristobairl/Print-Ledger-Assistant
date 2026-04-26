@@ -433,6 +433,7 @@ export class PrinterRadar {
         lastPort: abortProbe.port,
       }
       printer.enforcementRuntime.incidentActive = true
+      void this.recordSnipeEvent(printer)
       printer.enforcement = {
         mode: 'auto-snipe',
         state: 'aborting',
@@ -466,6 +467,26 @@ export class PrinterRadar {
       state: 'idle',
       lastAction: printer.enforcement.lastAction,
       reason: 'Printer is offline, so auto-snipe cannot evaluate a new print right now.',
+    }
+  }
+
+  private async recordSnipeEvent(printer: PrinterRuntime) {
+    if (!isUuidString(printer.id)) {
+      console.warn(`[Radar] Skipping snipe event log for ${printer.name}; printer id is not a UUID.`)
+      return
+    }
+
+    const studentId = isUuidString(printer.authorization.studentId) ? printer.authorization.studentId : null
+    const { error } = await supabase
+      .from('events')
+      .insert({
+        event_type: 'snipe',
+        printer_id: printer.id,
+        student_id: studentId,
+      })
+
+    if (error) {
+      console.error(`[Radar] Failed to record snipe event for ${printer.name}.`, error)
     }
   }
 
@@ -839,4 +860,9 @@ export class PrinterRadar {
 
     return this.printers.map((printer) => this.clonePrinter(printer))
   }
+}
+
+function isUuidString(value: string | null | undefined) {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }

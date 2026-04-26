@@ -865,6 +865,13 @@
   padding: 22px;
 }
 
+.admin-panel__section {
+  display: grid;
+  gap: 14px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(23, 35, 31, 0.08);
+}
+
 .admin-printer-list,
 .admin-alert-list {
   display: grid;
@@ -882,7 +889,8 @@
 }
 
 .admin-printer-row__header,
-.admin-printer-row__title {
+.admin-printer-row__title,
+.admin-alert-item__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -901,6 +909,7 @@
 }
 
 .admin-printer-row__meta,
+.admin-alert-item__meta,
 .admin-alert-item__detail,
 .admin-empty {
   color: var(--muted);

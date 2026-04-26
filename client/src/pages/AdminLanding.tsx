@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import type { LandingState, Printer } from '../types'
+import type { EventItem, LandingState, Printer } from '../types'
 
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000
 
@@ -11,8 +11,11 @@ export function AdminLanding() {
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [lastInteractionMs, setLastInteractionMs] = useState(() => Date.now())
   const [printers, setPrinters] = useState<Printer[]>([])
+  const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [eventsError, setEventsError] = useState<string | null>(null)
   const [closingSession, setClosingSession] = useState(false)
 
   if (!state?.firstName) {
@@ -85,6 +88,50 @@ export function AdminLanding() {
     const interval = window.setInterval(() => {
       void loadPrinters()
     }, 2000)
+
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
+    const loadEvents = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/events?eventType=snipe&limit=12')
+        if (!response.ok) {
+          throw new Error(`Events request failed with ${response.status}`)
+        }
+
+        const data = (await response.json()) as EventItem[]
+        if (!active) {
+          return
+        }
+
+        setEvents(data)
+        setEventsError(null)
+      } catch (fetchError) {
+        if (!active) {
+          return
+        }
+
+        setEvents([])
+        setEventsError(
+          fetchError instanceof Error ? fetchError.message : 'Failed to load event history.',
+        )
+      } finally {
+        if (active) {
+          setEventsLoading(false)
+        }
+      }
+    }
+
+    void loadEvents()
+    const interval = window.setInterval(() => {
+      void loadEvents()
+    }, 5000)
 
     return () => {
       active = false
@@ -182,7 +229,7 @@ export function AdminLanding() {
             <button
               type="button"
               className="admin-button admin-button--primary"
-              onClick={() => navigate('/printers')}
+              onClick={() => navigate('/printers', { state })}
             >
               Open Printer Diagnostics
             </button>
@@ -271,6 +318,39 @@ export function AdminLanding() {
               </div>
             )}
 
+            <div className="admin-panel__section">
+              <div className="section-heading">
+                <div>
+                  <p className="section-heading__eyebrow">Event history</p>
+                  <h2>Recent snipe events</h2>
+                </div>
+              </div>
+
+              {eventsLoading ? <p className="admin-empty">Loading snipe history...</p> : null}
+              {!eventsLoading && eventsError ? <p className="admin-empty admin-empty--error">{eventsError}</p> : null}
+              {!eventsLoading && !eventsError && events.length === 0 ? (
+                <p className="admin-empty">No snipe events have been recorded yet.</p>
+              ) : null}
+
+              {!eventsLoading && !eventsError && events.length > 0 ? (
+                <div className="admin-alert-list">
+                  {events.map((event) => (
+                    <article key={event.id} className="admin-alert-item">
+                      <div className="admin-alert-item__header">
+                        <p className="admin-alert-item__title">{event.title}</p>
+                        <p className="admin-alert-item__meta">{formatEventTimestamp(event.timestamp)}</p>
+                      </div>
+                      <p className="admin-alert-item__detail">
+                        {event.printerName}
+                        {event.studentLabel ? ` | ${event.studentLabel}` : ''}
+                      </p>
+                      <p className="admin-alert-item__detail">{event.detail}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
             <button
               type="button"
               className="admin-button admin-button--secondary admin-button--full"
@@ -320,4 +400,13 @@ function formatCountdown(remainingMs: number) {
   const seconds = totalSeconds % 60
 
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function formatEventTimestamp(timestamp: string) {
+  const parsed = Date.parse(timestamp)
+  if (Number.isNaN(parsed)) {
+    return timestamp
+  }
+
+  return new Date(parsed).toLocaleString()
 }

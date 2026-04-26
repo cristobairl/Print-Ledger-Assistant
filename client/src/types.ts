@@ -82,7 +82,7 @@ export type Job = {
   reason: string
 }
 
-export type EventType = 'auth' | 'security' | 'system'
+export type EventType = 'auth' | 'security' | 'system' | 'snipe'
 
 export type EventItem = {
   id: string
@@ -90,5 +90,8 @@ export type EventItem = {
   type: EventType
   title: string
   detail: string
+  printerId: string | null
   printerName: string
+  studentId: string | null
+  studentLabel: string | null
 }

@@ -3,6 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 
 import authRoutes from './routes/auth'
+import eventRoutes from './routes/events'
 import jobRoutes from './routes/jobs'
 import printerRoutes from './routes/printers'
 import { PrinterRadar } from './radar'
@@ -17,6 +18,7 @@ app.use(cors())
 app.use(express.json())
 
 app.use('/auth', authRoutes)
+app.use('/events', eventRoutes)
 app.use('/jobs', jobRoutes)
 app.use('/printers', printerRoutes)
 

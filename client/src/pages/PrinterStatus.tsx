@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { PrinterCard } from '../components/PrinterCard'
-import type { Printer } from '../types'
+import type { LandingState, Printer } from '../types'
 
 export function PrinterStatus() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const adminState = (location.state as LandingState | null) ?? null
   const [printers, setPrinters] = useState<Printer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +82,15 @@ export function PrinterStatus() {
               bed heating or print activity will trigger one `~M26` auto-snipe attempt.
             </p>
           </div>
+          {adminState?.firstName && adminState.isAdmin ? (
+            <button
+              type="button"
+              className="admin-button admin-button--secondary"
+              onClick={() => navigate('/admin', { state: adminState })}
+            >
+              Back to Admin Dashboard
+            </button>
+          ) : null}
         </div>
 
         <div className="hero-stats">
