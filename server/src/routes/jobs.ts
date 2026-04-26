@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { supabase } from '../db'
+import { getPrintPolicySettings } from '../print-policy'
 
 const router = Router()
 
@@ -22,6 +23,7 @@ type CreateJobBody = {
   studentId?: string
   printerId?: string
   fileName?: string
+  estimatedTimeMinutes?: number | string
   estimatedWeightGrams?: number | string
   jobReason?: string
 }
@@ -53,7 +55,9 @@ router.post('/', async (req, res) => {
   const printerId = body.printerId?.trim()
   const fileName = body.fileName?.trim()
   const jobReason = body.jobReason?.trim()
+  const estimatedTimeMinutes = toPositiveInteger(body.estimatedTimeMinutes)
   const estimatedWeightGrams = toPositiveNumber(body.estimatedWeightGrams)
+  const { maxPrintHours } = getPrintPolicySettings()
 
   if (!studentId) {
     return res.status(400).json({ error: 'Student id is required.' })
@@ -65,6 +69,14 @@ router.post('/', async (req, res) => {
 
   if (!fileName) {
     return res.status(400).json({ error: 'File name is required.' })
+  }
+
+  if (estimatedTimeMinutes === null) {
+    return res.status(400).json({ error: 'Estimated time must be greater than zero.' })
+  }
+
+  if (estimatedTimeMinutes > maxPrintHours * 60) {
+    return res.status(400).json({ error: `Estimated time cannot exceed ${maxPrintHours} hours.` })
   }
 
   if (estimatedWeightGrams === null) {
@@ -80,7 +92,7 @@ router.post('/', async (req, res) => {
     printer_id: printerId,
     file_name: fileName,
     file_size: null,
-    estimated_time: null,
+    estimated_time: estimatedTimeMinutes,
     estimated_weight_grams: Number(estimatedWeightGrams.toFixed(2)),
     job_reason: jobReason,
     status: 'queued',
@@ -130,6 +142,21 @@ function toPositiveNumber(value: number | string | undefined) {
     const parsed = Number.parseFloat(value)
     if (Number.isFinite(parsed) && parsed > 0) {
       return parsed
+    }
+  }
+
+  return null
+}
+
+function toPositiveInteger(value: number | string | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.round(value)
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.round(parsed)
     }
   }
 

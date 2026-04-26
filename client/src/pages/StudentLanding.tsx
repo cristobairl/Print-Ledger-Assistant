@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import type { LandingState, Printer, StudentJob } from '../types'
+import type { LandingState, PrintPolicySettings, Printer, StudentJob } from '../types'
 
 const SESSION_MINUTES = 2
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000
 type StudentJobFormState = {
   studentIdentifier: string
   fileName: string
+  estimatedTimeHours: string
+  estimatedTimeMinutes: string
   estimatedWeightGrams: string
   jobReason: string
 }
@@ -34,6 +36,7 @@ export function StudentLanding() {
   const [jobForm, setJobForm] = useState<StudentJobFormState>(() => createJobFormState(state))
   const [jobFormSubmitted, setJobFormSubmitted] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
+  const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({ maxPrintHours: 5 })
 
   if (!state?.firstName) {
     return <Navigate to="/kiosk" replace />
@@ -121,7 +124,33 @@ export function StudentLanding() {
   useEffect(() => {
     let active = true
 
-    const loadJobs = async () => {
+    const loadPrintPolicy = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/settings/printing')
+        if (!response.ok) {
+          throw new Error(`Print settings request failed with ${response.status}`)
+        }
+
+        const data = (await response.json()) as PrintPolicySettings
+        if (active) {
+          setPrintPolicy(data)
+        }
+      } catch (settingsError) {
+        console.error('[StudentLanding] Failed to load print settings. Using defaults.', settingsError)
+      }
+    }
+
+    void loadPrintPolicy()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
+    const loadJobs = async (showLoading = false) => {
       if (!state.studentId) {
         if (active) {
           setJobs([])
@@ -132,7 +161,9 @@ export function StudentLanding() {
       }
 
       try {
-        setJobsLoading(true)
+        if (showLoading) {
+          setJobsLoading(true)
+        }
 
         const response = await fetch(`http://localhost:3000/jobs/student/${encodeURIComponent(state.studentId)}`)
         if (!response.ok) {
@@ -154,16 +185,20 @@ export function StudentLanding() {
         setJobs([])
         setJobsError(fetchError instanceof Error ? fetchError.message : 'Failed to load student jobs.')
       } finally {
-        if (active) {
+        if (active && showLoading) {
           setJobsLoading(false)
         }
       }
     }
 
-    void loadJobs()
+    void loadJobs(true)
+    const interval = window.setInterval(() => {
+      void loadJobs(false)
+    }, 5000)
 
     return () => {
       active = false
+      window.clearInterval(interval)
     }
   }, [state.studentId])
 
@@ -181,7 +216,7 @@ export function StudentLanding() {
 
   const selectedPrinter =
     displayPrinters.find((printer) => printer.id === selectedPrinterId) ?? currentSessionPrinter ?? null
-  const jobFormErrors = getJobFormErrors(jobForm)
+  const jobFormErrors = getJobFormErrors(jobForm, printPolicy.maxPrintHours)
   const isJobFormComplete = Object.values(jobFormErrors).every((error) => error === null)
   const timeLabel = formatClock(new Date(nowMs))
   const inactivityRemainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - (nowMs - lastInteractionMs))
@@ -276,6 +311,7 @@ export function StudentLanding() {
           studentId: state.studentId,
           printerId: selectedPrinter.id,
           fileName: jobForm.fileName.trim(),
+          estimatedTimeMinutes: getEstimatedTimeTotalMinutes(jobForm),
           estimatedWeightGrams: jobForm.estimatedWeightGrams,
           jobReason: jobForm.jobReason.trim(),
         }),
@@ -304,6 +340,7 @@ export function StudentLanding() {
             studentId: state.studentId,
             cardId: state.cardId,
             firstName: state.firstName,
+            jobId: jobPayload.id,
             durationMinutes: SESSION_MINUTES,
           }),
         },
@@ -401,7 +438,7 @@ export function StudentLanding() {
               <p className="section-heading__eyebrow">Print details</p>
               <h2>Enter your job information</h2>
               <p className="printer-page__lead">
-                Enter the file name, print weight, and job reason here. File size, estimated time, and printer timestamps will be filled in by the system when that data is available.
+                Enter the file name, the print time shown on the printer, the print weight, and the job reason here. Started and ended timestamps still come from the system automatically.
               </p>
             </div>
           </div>
@@ -433,6 +470,41 @@ export function StudentLanding() {
                 <span className="student-field__error">{jobFormErrors.fileName}</span>
               ) : null}
             </label>
+
+            <div className="student-field">
+              <span className="student-field__label">Estimated Print Time</span>
+              <div className="student-time-grid">
+                <NumericField
+                  label="Hours"
+                  value={jobForm.estimatedTimeHours}
+                  disabled={hasLiveSession || sessionRequestState === 'submitting'}
+                  placeholder="0"
+                  options={{ step: 1, min: 0, max: printPolicy.maxPrintHours, decimals: 0 }}
+                  error={null}
+                  onChange={(value) => {
+                    updateJobForm('estimatedTimeHours', value)
+                  }}
+                />
+                <NumericField
+                  label="Minutes"
+                  value={jobForm.estimatedTimeMinutes}
+                  disabled={hasLiveSession || sessionRequestState === 'submitting'}
+                  placeholder="0"
+                  options={{ step: 15, min: 0, max: 59, decimals: 0 }}
+                  error={null}
+                  onChange={(value) => {
+                    updateJobForm('estimatedTimeMinutes', value)
+                  }}
+                />
+              </div>
+              {jobFormSubmitted && jobFormErrors.estimatedTime ? (
+                <span className="student-field__error">{jobFormErrors.estimatedTime}</span>
+              ) : (
+                <span className="student-field__hint">
+                  Current maximum allowed print time is {printPolicy.maxPrintHours} hour{printPolicy.maxPrintHours === 1 ? '' : 's'}.
+                </span>
+              )}
+            </div>
 
             <NumericField
               label="Estimated Weight (grams)"
@@ -566,7 +638,7 @@ export function StudentLanding() {
               <p className="section-heading__eyebrow">Student log</p>
               <h2>Your recent jobs</h2>
               <p className="printer-page__lead">
-                Start and end timestamps will come from printer events once those signals are wired in. For now, this screen verifies that you swiped before starting a print session.
+                The system updates print status, estimated finish time, started time, and ended time from the printer automatically once progress is available.
               </p>
             </div>
           </div>
@@ -586,8 +658,13 @@ export function StudentLanding() {
                   <tr>
                     <th>Student ID</th>
                     <th>File Name</th>
+                    <th>Status</th>
                     <th>File Size</th>
                     <th>Estimated Time</th>
+                    <th>Estimated Finish</th>
+                    <th>Time Remaining</th>
+                    <th>Started At</th>
+                    <th>Ended At</th>
                     <th>Estimated Weight</th>
                     <th>Job Reason</th>
                   </tr>
@@ -597,8 +674,13 @@ export function StudentLanding() {
                     <tr key={job.id}>
                       <td>{state.cardId ?? job.studentId ?? 'Unknown'}</td>
                       <td>{job.fileName ?? 'Untitled file'}</td>
+                      <td>{formatJobStatus(job.status)}</td>
                       <td>{formatFileSize(job.fileSize)}</td>
                       <td>{formatEstimatedTime(job.estimatedTime)}</td>
+                      <td>{formatEstimatedFinish(job)}</td>
+                      <td>{formatJobTimeRemaining(job, nowMs)}</td>
+                      <td>{formatTimestamp(job.startedAt)}</td>
+                      <td>{formatTimestamp(job.endedAt)}</td>
                       <td>{formatWeight(job.estimatedWeightGrams)}</td>
                       <td>{job.jobReason ?? 'Not provided'}</td>
                     </tr>
@@ -676,7 +758,7 @@ function getSessionCopy({
     return {
       eyebrow: 'Complete the checklist',
       title: 'Add your print details first',
-      detail: 'Fill in the file name, print weight, and job reason before the session can be armed.',
+      detail: 'Fill in the file name, print time, print weight, and job reason before the session can be armed.',
     }
   }
 
@@ -724,6 +806,7 @@ function getFallbackPrinters(): Printer[] {
       studentId: null,
       cardId: null,
       firstName: null,
+      jobId: null,
     },
     connectivity: {
       state: 'offline',
@@ -833,14 +916,26 @@ function createJobFormState(state: LandingState | null): StudentJobFormState {
   return {
     studentIdentifier: state?.cardId ?? state?.studentId ?? 'Unknown student',
     fileName: '',
+    estimatedTimeHours: '',
+    estimatedTimeMinutes: '',
     estimatedWeightGrams: '',
     jobReason: '',
   }
 }
 
-function getJobFormErrors(form: StudentJobFormState) {
+function getJobFormErrors(form: StudentJobFormState, maxPrintHours: number) {
+  const totalEstimatedMinutes = getEstimatedTimeTotalMinutes(form)
+
   return {
     fileName: form.fileName.trim().length > 0 ? null : 'Enter the file name.',
+    estimatedTime:
+      totalEstimatedMinutes <= 0
+        ? 'Enter the print time shown on the printer.'
+        : totalEstimatedMinutes > maxPrintHours * 60
+          ? `Print time cannot exceed ${maxPrintHours} hour${maxPrintHours === 1 ? '' : 's'}.`
+          : isValidMinutePart(form.estimatedTimeMinutes)
+            ? null
+            : 'Enter a valid minute value between 0 and 59.',
     estimatedWeightGrams: isPositiveNumericString(form.estimatedWeightGrams)
       ? null
       : 'Enter the estimated weight in grams.',
@@ -986,6 +1081,96 @@ function formatEstimatedTime(value: number | string | null) {
   return trimmed
 }
 
+function formatJobStatus(value: string | null) {
+  if (!value) {
+    return 'Pending system data'
+  }
+
+  if (value === 'queued') {
+    return 'Queued'
+  }
+
+  if (value === 'printing') {
+    return 'Printing'
+  }
+
+  if (value === 'completed') {
+    return 'Completed'
+  }
+
+  if (value === 'expired') {
+    return 'Expired'
+  }
+
+  if (value === 'sniped') {
+    return 'Sniped'
+  }
+
+  return value
+}
+
+function formatEstimatedFinish(job: StudentJob) {
+  const estimatedEndAt = getEstimatedEndAt(job)
+  if (!estimatedEndAt) {
+    return 'Pending system data'
+  }
+
+  return formatTimestamp(estimatedEndAt)
+}
+
+function formatJobTimeRemaining(job: StudentJob, nowMs: number) {
+  if (job.status === 'completed' || job.endedAt) {
+    return 'Completed'
+  }
+
+  if (job.status === 'expired') {
+    return 'Expired'
+  }
+
+  const estimatedEndAt = getEstimatedEndAt(job)
+  if (!estimatedEndAt) {
+    return 'Pending system data'
+  }
+
+  const remainingMs = Date.parse(estimatedEndAt) - nowMs
+  if (!Number.isFinite(remainingMs)) {
+    return 'Pending system data'
+  }
+
+  if (remainingMs <= 0) {
+    return job.status === 'printing' ? 'Any moment' : 'Pending completion'
+  }
+
+  return formatRemainingClock(remainingMs)
+}
+
+function getEstimatedEndAt(job: StudentJob) {
+  const estimatedMinutes = toNumber(job.estimatedTime)
+  if (!job.startedAt || estimatedMinutes === null) {
+    return null
+  }
+
+  const startedMs = Date.parse(job.startedAt)
+  if (Number.isNaN(startedMs)) {
+    return null
+  }
+
+  return new Date(startedMs + estimatedMinutes * 60_000).toISOString()
+}
+
+function formatTimestamp(value: string | null) {
+  if (!value) {
+    return 'Pending system data'
+  }
+
+  const parsed = Date.parse(value)
+  if (Number.isNaN(parsed)) {
+    return value
+  }
+
+  return new Date(parsed).toLocaleString()
+}
+
 function formatMinutes(totalMinutes: number) {
   const roundedMinutes = Math.max(0, Math.round(totalMinutes))
   const hours = Math.floor(roundedMinutes / 60)
@@ -1000,6 +1185,38 @@ function formatMinutes(totalMinutes: number) {
   }
 
   return `${hours} hr ${minutes} min`
+}
+
+function formatRemainingClock(remainingMs: number) {
+  const safeMs = Math.max(0, remainingMs)
+  const totalSeconds = Math.ceil(safeMs / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function getEstimatedTimeTotalMinutes(form: Pick<StudentJobFormState, 'estimatedTimeHours' | 'estimatedTimeMinutes'>) {
+  const hours = Number.parseInt(form.estimatedTimeHours.trim() || '0', 10)
+  const minutes = Number.parseInt(form.estimatedTimeMinutes.trim() || '0', 10)
+  const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 0
+  const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, 59) : 0
+
+  return safeHours * 60 + safeMinutes
+}
+
+function isValidMinutePart(value: string) {
+  if (value.trim().length === 0) {
+    return true
+  }
+
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 59
 }
 
 function formatWeight(value: number | string | null) {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import type { EventItem, LandingState, Printer } from '../types'
+import type { EventItem, LandingState, PrintPolicySettings, Printer } from '../types'
 
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000
 
@@ -17,6 +17,10 @@ export function AdminLanding() {
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [closingSession, setClosingSession] = useState(false)
+  const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({ maxPrintHours: 5 })
+  const [policyLoading, setPolicyLoading] = useState(true)
+  const [policyError, setPolicyError] = useState<string | null>(null)
+  const [policySaveState, setPolicySaveState] = useState<'idle' | 'saving'>('idle')
 
   if (!state?.firstName) {
     return <Navigate to="/kiosk" replace />
@@ -98,6 +102,43 @@ export function AdminLanding() {
   useEffect(() => {
     let active = true
 
+    const loadPrintPolicy = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/settings/printing')
+        if (!response.ok) {
+          throw new Error(`Print settings request failed with ${response.status}`)
+        }
+
+        const data = (await response.json()) as PrintPolicySettings
+        if (active) {
+          setPrintPolicy(data)
+          setPolicyError(null)
+        }
+      } catch (fetchError) {
+        if (!active) {
+          return
+        }
+
+        setPolicyError(
+          fetchError instanceof Error ? fetchError.message : 'Failed to load print rules.',
+        )
+      } finally {
+        if (active) {
+          setPolicyLoading(false)
+        }
+      }
+    }
+
+    void loadPrintPolicy()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
     const loadEvents = async () => {
       try {
         const response = await fetch('http://localhost:3000/events?eventType=snipe&limit=12')
@@ -172,6 +213,40 @@ export function AdminLanding() {
 
     setClosingSession(true)
     navigate('/kiosk', { replace: true })
+  }
+
+  async function handleSavePrintPolicy() {
+    setPolicySaveState('saving')
+    setPolicyError(null)
+
+    try {
+      const response = await fetch('http://localhost:3000/settings/printing', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          maxPrintHours: printPolicy.maxPrintHours,
+        }),
+      })
+
+      const payload = (await response.json()) as PrintPolicySettings | { error?: string }
+      if (!response.ok || !('maxPrintHours' in payload)) {
+        const message =
+          'error' in payload && typeof payload.error === 'string'
+            ? payload.error
+            : `Failed to save print rules with ${response.status}`
+        throw new Error(message)
+      }
+
+      setPrintPolicy(payload)
+    } catch (saveError) {
+      setPolicyError(
+        saveError instanceof Error ? saveError.message : 'Failed to save print rules.',
+      )
+    } finally {
+      setPolicySaveState('idle')
+    }
   }
 
   return (
@@ -347,6 +422,78 @@ export function AdminLanding() {
                       <p className="admin-alert-item__detail">{event.detail}</p>
                     </article>
                   ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="admin-panel__section">
+              <div className="section-heading">
+                <div>
+                  <p className="section-heading__eyebrow">Print rules</p>
+                  <h2>Hackathon duration limit</h2>
+                </div>
+              </div>
+
+              <p className="admin-alert-item__detail">
+                Weekend-specific rules are off for the hackathon right now. The active limit below controls how long a student can say their print will take.
+              </p>
+
+              {policyLoading ? <p className="admin-empty">Loading print rules...</p> : null}
+              {policyError ? <p className="admin-empty admin-empty--error">{policyError}</p> : null}
+
+              {!policyLoading ? (
+                <div className="admin-setting-row">
+                  <label className="student-field admin-setting-field">
+                    <span className="student-field__label">Maximum print time (hours)</span>
+                    <div className="student-stepper">
+                      <button
+                        type="button"
+                        className="student-stepper__button"
+                        onClick={() =>
+                          setPrintPolicy((current) => ({
+                            maxPrintHours: Math.max(1, current.maxPrintHours - 1),
+                          }))
+                        }
+                      >
+                        -
+                      </button>
+                      <input
+                        className="student-field__input student-field__input--stepper"
+                        inputMode="numeric"
+                        value={String(printPolicy.maxPrintHours)}
+                        onChange={(event) => {
+                          const nextValue = Number.parseInt(event.target.value, 10)
+                          setPrintPolicy((current) => ({
+                            maxPrintHours: Number.isFinite(nextValue)
+                              ? Math.min(Math.max(nextValue, 1), 24)
+                              : current.maxPrintHours,
+                          }))
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="student-stepper__button"
+                        onClick={() =>
+                          setPrintPolicy((current) => ({
+                            maxPrintHours: Math.min(24, current.maxPrintHours + 1),
+                          }))
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+                  </label>
+
+                  <button
+                    type="button"
+                    className="admin-button admin-button--primary"
+                    disabled={policySaveState === 'saving'}
+                    onClick={() => {
+                      void handleSavePrintPolicy()
+                    }}
+                  >
+                    {policySaveState === 'saving' ? 'Saving...' : 'Save Rule'}
+                  </button>
                 </div>
               ) : null}
             </div>

@@ -24,6 +24,7 @@ export type PrinterStatusSnapshot = {
     studentId: string | null
     cardId: string | null
     firstName: string | null
+    jobId: string | null
   }
   connectivity: {
     state: ConnectivityState

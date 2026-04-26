@@ -3,7 +3,6 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  position: relative;
 }
 
 .kiosk-panel {
@@ -17,26 +16,6 @@
   box-shadow: var(--shadow-soft);
   display: grid;
   gap: 28px;
-}
-
-.admin-toggle {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 42px;
-  aspect-ratio: 1;
-  border: 1px solid rgba(23, 35, 31, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text-strong);
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: var(--shadow-soft);
-}
-
-.admin-toggle--active {
-  background: #17231f;
-  color: #f4f7f2;
 }
 
 .kiosk-panel--success {
@@ -160,17 +139,27 @@
 .student-screen {
   min-height: 100vh;
   padding: 18px 24px 24px;
+  display: grid;
+  justify-items: center;
+  overflow-x: hidden;
 }
 
 .student-shell {
   width: min(1120px, 100%);
+  max-width: 1120px;
   margin: 0 auto;
+  min-width: 0;
   display: grid;
   gap: 18px;
+  justify-self: center;
 }
 
 .student-shell--log {
   grid-template-rows: none;
+}
+
+.student-shell > * {
+  min-width: 0;
 }
 
 .student-topbar,
@@ -306,6 +295,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
+  flex-wrap: wrap;
   margin-bottom: 18px;
 }
 
@@ -331,17 +321,42 @@
 .student-printer-panel,
 .student-log-panel {
   padding: 22px;
+  min-width: 0;
+}
+
+.student-details-panel,
+.student-log-panel {
+  display: grid;
+  gap: 18px;
 }
 
 .student-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
+  align-items: start;
 }
 
 .student-field {
   display: grid;
   gap: 8px;
+  min-width: 0;
+}
+
+.student-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.student-form-grid > *,
+.student-time-grid > * {
+  min-width: 0;
+}
+
+.student-time-grid .student-field__label {
+  font-size: 0.84rem;
 }
 
 .student-field--full {
@@ -398,6 +413,7 @@
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: stretch;
+  width: 100%;
   border-radius: 8px;
   border: 1px solid rgba(23, 35, 31, 0.14);
   background: rgba(255, 255, 255, 0.86);
@@ -681,6 +697,8 @@
 }
 
 .student-table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   border-radius: 8px;
   border: 1px solid rgba(23, 35, 31, 0.08);
@@ -689,7 +707,7 @@
 .student-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 1280px;
   background: rgba(255, 255, 255, 0.8);
 }
 
@@ -870,6 +888,18 @@
   gap: 14px;
   padding-top: 6px;
   border-top: 1px solid rgba(23, 35, 31, 0.08);
+}
+
+.admin-setting-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-setting-field {
+  min-width: min(320px, 100%);
 }
 
 .admin-printer-list,
@@ -1136,6 +1166,10 @@
   }
 
   .student-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-time-grid {
     grid-template-columns: 1fr;
   }
 

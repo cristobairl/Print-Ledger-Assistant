@@ -6,6 +6,10 @@ export type LandingState = {
   created?: boolean
 }
 
+export type PrintPolicySettings = {
+  maxPrintHours: number
+}
+
 export type Printer = {
   id: string
   name: string
@@ -19,6 +23,7 @@ export type Printer = {
     studentId: string | null
     cardId: string | null
     firstName: string | null
+    jobId: string | null
   }
   connectivity: {
     state: 'online' | 'offline'
@@ -68,7 +73,7 @@ export type StudentJob = {
   status: string | null
 }
 
-export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped'
+export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped' | 'expired'
 
 export type Job = {
   id: string

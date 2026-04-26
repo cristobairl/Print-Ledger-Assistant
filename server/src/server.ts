@@ -6,6 +6,7 @@ import authRoutes from './routes/auth'
 import eventRoutes from './routes/events'
 import jobRoutes from './routes/jobs'
 import printerRoutes from './routes/printers'
+import settingsRoutes from './routes/settings'
 import { PrinterRadar } from './radar'
 
 dotenv.config()
@@ -21,6 +22,7 @@ app.use('/auth', authRoutes)
 app.use('/events', eventRoutes)
 app.use('/jobs', jobRoutes)
 app.use('/printers', printerRoutes)
+app.use('/settings', settingsRoutes)
 
 app.get('/status', (req, res) => {
   res.json({ status: 'PLA server running' })

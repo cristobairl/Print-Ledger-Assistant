@@ -21,7 +21,6 @@ export function Kiosk() {
   const [swipeData, setSwipeData] = useState<SwipeResponse | null>(null)
   const [swipeState, setSwipeState] = useState<SwipeState>('idle')
   const [readerHint, setReaderHint] = useState('Waiting for card swipe')
-  const [adminMode, setAdminMode] = useState(false)
 
   useEffect(() => {
     let resetTimer: number | undefined
@@ -88,7 +87,7 @@ export function Kiosk() {
       const response = await fetch('http://localhost:3000/auth/swipe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw, adminMode }),
+        body: JSON.stringify({ raw }),
       })
 
       const data = (await response.json()) as SwipeResponse
@@ -124,12 +123,12 @@ export function Kiosk() {
         firstName: 'Demo',
         cardId: 'DEMO-0001',
         studentId: 'demo-student',
-        isAdmin: adminMode,
+        isAdmin: false,
         created: true,
       }
 
       window.setTimeout(() => {
-        navigate(adminMode ? '/admin' : '/student', {
+        navigate('/student', {
           state: nextState,
         })
       }, 450)
@@ -138,24 +137,12 @@ export function Kiosk() {
 
   return (
     <main className="kiosk-screen">
-      <button
-        type="button"
-        className={`admin-toggle ${adminMode ? 'admin-toggle--active' : ''}`}
-        title={adminMode ? 'Admin mode enabled' : 'Admin mode'}
-        aria-label={adminMode ? 'Disable admin mode' : 'Enable admin mode'}
-        onClick={() => setAdminMode((current) => !current)}
-      >
-        A
-      </button>
-
       <section className={`kiosk-panel kiosk-panel--${swipeState}`}>
         <div className="kiosk-panel__header">
           <p className="kiosk-panel__eyebrow">USF 3D Print Lab</p>
           <h1>Swipe your student ID</h1>
           <p className="kiosk-panel__lead">
-            Use the magnetic card reader to begin. The reader types the whole
-            swipe like a keyboard, and this kiosk listens for that full burst of
-            track data automatically.
+            Use the magnetic card reader to begin your print session.
           </p>
         </div>
 
@@ -193,9 +180,7 @@ export function Kiosk() {
             <>
               <p className="swipe-card__label">Ready</p>
               <p className="swipe-card__name">Present card to reader</p>
-              <p className="swipe-card__message">
-                Keep this page focused so the keyboard-style swipe input lands here.
-              </p>
+              <p className="swipe-card__message">Swipe once to continue.</p>
             </>
           )}
         </div>

@@ -2,10 +2,20 @@ import * as net from 'net'
 import { supabase } from './db'
 import type { PrinterStatusSnapshot, TemperatureTelemetry } from './printer-status'
 
+type M27Progress = {
+  bytesCurrent: number | null
+  bytesTotal: number | null
+  layerCurrent: number | null
+  layerTotal: number | null
+}
+
 type PrinterRuntime = PrinterStatusSnapshot & {
   enforcementRuntime: {
     incidentActive: boolean
     lastAbortAttemptAt: number | null
+  }
+  jobRuntime: {
+    startedAt: string | null
   }
 }
 type PrinterConfigRow = {
@@ -17,6 +27,7 @@ type AuthorizationRequest = {
   studentId?: string | null
   cardId?: string | null
   firstName?: string | null
+  jobId?: string | null
   durationMinutes?: number | null
 }
 
@@ -89,6 +100,7 @@ export class PrinterRadar {
           const telemetry = telemetryProbe.ok
             ? this.parseTelemetry(telemetryProbe.response)
             : this.emptyTelemetry()
+          const progress = this.parseM27Progress(activityProbe.ok ? activityProbe.response : '')
           const activity = this.deriveActivity(
             activityProbe.ok ? activityProbe.response : null,
             telemetryProbe.ok,
@@ -111,7 +123,8 @@ export class PrinterRadar {
             lastPort,
           }
           printer.activity = activity
-          this.syncAuthorizationState(printer, seenAt)
+          await this.syncAuthorizationState(printer, seenAt)
+          await this.updateTrackedJob(printer, progress, seenAt)
           await this.updateEnforcement(printer, seenAt)
 
           console.log(
@@ -139,7 +152,7 @@ export class PrinterRadar {
             ...this.emptyTelemetry(),
             rawResponse: null,
           }
-          this.syncAuthorizationState(printer, seenAt)
+          await this.syncAuthorizationState(printer, seenAt)
           this.updateEnforcementWhenOffline(printer)
           console.error(`[Radar] Diagnostics failed for ${printer.name} (${printer.ip})`, error)
         }
@@ -158,6 +171,7 @@ export class PrinterRadar {
         name: config.name,
         ip: config.ip,
         enforcementRuntime: { ...previous.enforcementRuntime },
+        jobRuntime: { ...previous.jobRuntime },
       }
     }
 
@@ -201,6 +215,9 @@ export class PrinterRadar {
         incidentActive: false,
         lastAbortAttemptAt: null,
       },
+      jobRuntime: {
+        startedAt: null,
+      },
     }
   }
 
@@ -214,6 +231,7 @@ export class PrinterRadar {
       studentId: null,
       cardId: null,
       firstName: null,
+      jobId: null,
     }
   }
 
@@ -281,7 +299,7 @@ export class PrinterRadar {
     return this.printers.map((printer) => `${printer.name} (${printer.ip})`).join(', ')
   }
 
-  private syncAuthorizationState(printer: PrinterRuntime, nowIso = new Date().toISOString()) {
+  private async syncAuthorizationState(printer: PrinterRuntime, nowIso = new Date().toISOString()) {
     if (printer.authorization.state !== 'authorized') {
       return
     }
@@ -308,7 +326,9 @@ export class PrinterRadar {
         return
       }
 
+      await this.finalizeTrackedJob(printer, nowIso)
       printer.authorization = this.createUnauthorizedAuthorization()
+      this.resetTrackedJobRuntime(printer)
       return
     }
 
@@ -318,7 +338,9 @@ export class PrinterRadar {
     }
 
     if (Date.parse(expiresAt) <= Date.parse(nowIso)) {
+      await this.expireTrackedJobIfNeeded(printer)
       printer.authorization = this.createUnauthorizedAuthorization()
+      this.resetTrackedJobRuntime(printer)
     }
   }
 
@@ -467,6 +489,98 @@ export class PrinterRadar {
       state: 'idle',
       lastAction: printer.enforcement.lastAction,
       reason: 'Printer is offline, so auto-snipe cannot evaluate a new print right now.',
+    }
+  }
+
+  private async updateTrackedJob(printer: PrinterRuntime, progress: M27Progress, nowIso: string) {
+    const jobId = printer.authorization.jobId
+    if (
+      printer.authorization.state !== 'authorized' ||
+      printer.authorization.sessionState !== 'active_print' ||
+      !jobId ||
+      !isUuidString(jobId)
+    ) {
+      return
+    }
+
+    if (!this.hasStrongProgressSignal(progress)) {
+      return
+    }
+
+    if (printer.jobRuntime.startedAt === null) {
+      printer.jobRuntime.startedAt = nowIso
+
+      await this.updateJobRecord(jobId, {
+        status: 'printing',
+        started_at: nowIso,
+      })
+      return
+    }
+  }
+
+  private async finalizeTrackedJob(printer: PrinterRuntime, nowIso: string) {
+    const jobId = printer.authorization.jobId
+    if (!jobId || !isUuidString(jobId)) {
+      return
+    }
+
+    if (printer.jobRuntime.startedAt === null) {
+      await this.updateJobRecord(jobId, {
+        status: 'expired',
+      })
+      return
+    }
+
+    await this.updateJobRecord(jobId, {
+      status: 'completed',
+      ended_at: nowIso,
+    })
+  }
+
+  private async expireTrackedJobIfNeeded(printer: PrinterRuntime) {
+    const jobId = printer.authorization.jobId
+    if (
+      !jobId ||
+      !isUuidString(jobId) ||
+      printer.jobRuntime.startedAt !== null
+    ) {
+      return
+    }
+
+    await this.updateJobRecord(jobId, {
+      status: 'expired',
+    })
+  }
+
+  private resetTrackedJobRuntime(printer: PrinterRuntime) {
+    printer.jobRuntime = {
+      startedAt: null,
+    }
+  }
+
+  private async updateJobRecord(
+    jobId: string,
+    fields: {
+      status?: 'queued' | 'printing' | 'completed' | 'expired' | 'sniped' | null
+      started_at?: string | null
+      ended_at?: string | null
+    },
+  ) {
+    const payload = Object.fromEntries(
+      Object.entries(fields).filter(([, value]) => value !== undefined),
+    )
+
+    if (Object.keys(payload).length === 0) {
+      return
+    }
+
+    const { error } = await supabase
+      .from('jobs')
+      .update(payload)
+      .eq('id', jobId)
+
+    if (error) {
+      console.error(`[Radar] Failed to update job ${jobId}.`, error)
     }
   }
 
@@ -744,7 +858,7 @@ export class PrinterRadar {
     }
   }
 
-  private parseM27Progress(response: string) {
+  private parseM27Progress(response: string): M27Progress {
     const byteMatch = response.match(/printing byte\s+(\d+)\s*\/\s*(\d+)/i)
     const layerMatch = response.match(/layer:\s*(\d+)\s*\/\s*(\d+)/i)
 
@@ -838,7 +952,9 @@ export class PrinterRadar {
       studentId: request.studentId?.trim() || null,
       cardId: request.cardId?.trim() || null,
       firstName: request.firstName?.trim() || null,
+      jobId: request.jobId?.trim() || null,
     }
+    this.resetTrackedJobRuntime(printer)
     return true
   }
 
@@ -848,7 +964,9 @@ export class PrinterRadar {
       return false
     }
 
+    void this.expireTrackedJobIfNeeded(printer)
     printer.authorization = this.createUnauthorizedAuthorization()
+    this.resetTrackedJobRuntime(printer)
     return true
   }
 
