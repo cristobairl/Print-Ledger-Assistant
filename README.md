@@ -45,6 +45,7 @@ Print-Ledger-Assistant/
 │   └── package.json
 ├── rules.md                 # Agent-facing source of truth
 └── README.md
+```
 🚀 Getting Started1. Supabase SetupEnsure your Supabase tables (Students, Jobs, Printers, Filament) are configured. This project uses direct table access via the Anon Key.2. Environment ConfigurationCreate a .env file in the server directory:Code snippetPORT=3000
 SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
 SUPABASE_ANON_KEY=your-long-anon-key-string-goes-here
