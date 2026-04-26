@@ -616,9 +616,9 @@ export function StudentLanding() {
               const availability = mapPrinterAvailability(printer, state, requestedWeightGrams)
               const isSelected = selectedPrinter?.id === printer.id
 
-              return (
-                <button
-                  key={printer.id}
+                return (
+                  <button
+                    key={printer.id}
                   type="button"
                   className={[
                     'student-printer-tile',
@@ -634,12 +634,13 @@ export function StudentLanding() {
                       aria-hidden="true"
                     />
                     <span className="student-printer-tile__status">{availability.label}</span>
-                  </div>
-                  <p className="student-printer-tile__name">{printer.name}</p>
-                  <p className="student-printer-tile__meta">{availability.detail}</p>
-                </button>
-              )
-            })}
+                    </div>
+                    <p className="student-printer-tile__name">{printer.name}</p>
+                    <p className="student-printer-tile__meta">{availability.detail}</p>
+                    <p className="student-printer-tile__submeta">{getFilamentAvailabilityLabel(printer)}</p>
+                  </button>
+                )
+              })}
           </div>
         </section>
 
@@ -990,6 +991,31 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null, re
     isCurrentSession,
     detail: 'Printer is not available for a new session.',
   }
+}
+
+function getFilamentAvailabilityLabel(printer: Printer) {
+  const usable = printer.filament.usableWeightGrams
+  const material = printer.filament.material
+  const brand = printer.filament.brand
+
+  if (usable !== null) {
+    const filamentLabel = [brand, material].filter(Boolean).join(' ')
+    if (filamentLabel) {
+      return `${filamentLabel} | ${formatWeight(usable)} usable`
+    }
+
+    return `${formatWeight(usable)} usable filament left`
+  }
+
+  if (printer.filament.state === 'unassigned') {
+    return 'No filament assigned'
+  }
+
+  if (printer.filament.state === 'unknown') {
+    return 'Filament level unavailable'
+  }
+
+  return printer.filament.reason
 }
 
 function createJobFormState(state: LandingState | null): StudentJobFormState {

@@ -194,6 +194,7 @@ export function AdminLanding() {
     }
   }, [printers])
 
+  const fleetPrinters = useMemo(() => [...printers].sort(compareFleetPrinters), [printers])
   const monitoredPrinters = printers.filter((printer) => printer.enforcement.state !== 'idle')
   const timeLabel = formatClock(new Date(nowMs))
   const inactivityRemainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - (nowMs - lastInteractionMs))
@@ -305,18 +306,18 @@ export function AdminLanding() {
             <button
               type="button"
               className="admin-button admin-button--primary tooltip-trigger"
-              data-tooltip="View live printer replies and watchdog status."
-              onClick={() => navigate('/printers', { state })}
-            >
-              Open Printer Diagnostics
-            </button>
-            <button
-              type="button"
-              className="admin-button admin-button--secondary tooltip-trigger"
               data-tooltip="Open filament inventory and active spool assignments."
               onClick={() => navigate('/filament', { state })}
             >
               Open Filament Tracker
+            </button>
+            <button
+              type="button"
+              className="admin-button admin-button--secondary tooltip-trigger"
+              data-tooltip="View live printer replies and watchdog status."
+              onClick={() => navigate('/printers', { state })}
+            >
+              Open Printer Diagnostics
             </button>
             <button
               type="button"
@@ -357,7 +358,7 @@ export function AdminLanding() {
             {error ? <p className="admin-empty admin-empty--error">{error}</p> : null}
 
             <div className="admin-printer-list">
-              {printers.map((printer) => {
+              {fleetPrinters.map((printer) => {
                 const availability = mapPrinterAvailability(printer)
 
                 return (
@@ -441,13 +442,9 @@ export function AdminLanding() {
               <div className="section-heading">
                 <div>
                   <p className="section-heading__eyebrow">Print rules</p>
-                  <h2>Hackathon duration limit</h2>
+                  <h2>Time limit per print</h2>
                 </div>
               </div>
-
-              <p className="admin-alert-item__detail">
-                Weekend-specific rules are off for the hackathon right now. The active limit below controls how long a student can say their print will take.
-              </p>
 
               {policyLoading ? <p className="admin-empty">Loading print rules...</p> : null}
               {policyError ? <p className="admin-empty admin-empty--error">{policyError}</p> : null}
@@ -551,6 +548,31 @@ function mapPrinterAvailability(printer: Printer) {
     label: 'In Use',
     tone: 'busy' as const,
   }
+}
+
+function compareFleetPrinters(left: Printer, right: Printer) {
+  const priorityDifference = getFleetPrinterPriority(left) - getFleetPrinterPriority(right)
+  if (priorityDifference !== 0) {
+    return priorityDifference
+  }
+
+  return left.name.localeCompare(right.name)
+}
+
+function getFleetPrinterPriority(printer: Printer) {
+  if (printer.connectivity.state !== 'online') {
+    return 2
+  }
+
+  if (
+    printer.activity.state === 'printing' ||
+    printer.activity.state === 'heating' ||
+    printer.authorization.sessionState === 'active_print'
+  ) {
+    return 0
+  }
+
+  return 1
 }
 
 function formatCountdown(remainingMs: number) {

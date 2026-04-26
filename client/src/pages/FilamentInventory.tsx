@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import type { FilamentEvent, FilamentSpool, LandingState, Printer } from '../types'
 
@@ -28,6 +28,7 @@ export function FilamentInventory() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [form, setForm] = useState<SpoolFormState>(createDefaultSpoolForm())
   const [draftAssignments, setDraftAssignments] = useState<Record<string, string>>({})
   const [draftRemaining, setDraftRemaining] = useState<Record<string, string>>({})
@@ -55,13 +56,13 @@ export function FilamentInventory() {
       setLastInteractionMs(Date.now())
     }
 
-    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'focusin']
-    events.forEach((eventName) => {
+    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'focusin']
+    activityEvents.forEach((eventName) => {
       window.addEventListener(eventName, markInteraction)
     })
 
     return () => {
-      events.forEach((eventName) => {
+      activityEvents.forEach((eventName) => {
         window.removeEventListener(eventName, markInteraction)
       })
     }
@@ -105,12 +106,7 @@ export function FilamentInventory() {
         setPrinters(printerData)
         setSpools(spoolData)
         setEvents(eventData)
-        setDraftAssignments(
-          Object.fromEntries(spoolData.map((spool) => [spool.id, spool.activePrinterId ?? ''])),
-        )
-        setDraftRemaining(
-          Object.fromEntries(spoolData.map((spool) => [spool.id, String(spool.remainingWeightGrams)])),
-        )
+        syncSpoolDrafts(spoolData, setDraftAssignments, setDraftRemaining)
         setError(null)
       } catch (fetchError) {
         if (!active) {
@@ -148,6 +144,24 @@ export function FilamentInventory() {
 
     void handleCloseSession()
   }, [closingSession, inactivityRemainingMs])
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return
+    }
+
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) {
+        setIsCreateModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeydown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeydown)
+    }
+  }, [isCreateModalOpen, saving])
 
   const metrics = useMemo(() => {
     const totalUsableWeight = spools.reduce((sum, spool) => sum + spool.usableWeightGrams, 0)
@@ -193,9 +207,7 @@ export function FilamentInventory() {
         }),
       })
 
-      const payload = (await response.json()) as
-        | { error?: string }
-        | { spools?: FilamentSpool[] }
+      const payload = (await response.json()) as { error?: string } | { spools?: FilamentSpool[] }
 
       if (!response.ok || !('spools' in payload) || !payload.spools) {
         const message =
@@ -206,13 +218,9 @@ export function FilamentInventory() {
       }
 
       setSpools(payload.spools)
-      setDraftAssignments(
-        Object.fromEntries(payload.spools.map((spool) => [spool.id, spool.activePrinterId ?? ''])),
-      )
-      setDraftRemaining(
-        Object.fromEntries(payload.spools.map((spool) => [spool.id, String(spool.remainingWeightGrams)])),
-      )
+      syncSpoolDrafts(payload.spools, setDraftAssignments, setDraftRemaining)
       setForm(createDefaultSpoolForm())
+      setIsCreateModalOpen(false)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Failed to create spool.')
     } finally {
@@ -235,9 +243,7 @@ export function FilamentInventory() {
         }),
       })
 
-      const payload = (await response.json()) as
-        | { error?: string }
-        | { spools?: FilamentSpool[] }
+      const payload = (await response.json()) as { error?: string } | { spools?: FilamentSpool[] }
 
       if (!response.ok || !('spools' in payload) || !payload.spools) {
         const message =
@@ -248,12 +254,7 @@ export function FilamentInventory() {
       }
 
       setSpools(payload.spools)
-      setDraftAssignments(
-        Object.fromEntries(payload.spools.map((spool) => [spool.id, spool.activePrinterId ?? ''])),
-      )
-      setDraftRemaining(
-        Object.fromEntries(payload.spools.map((spool) => [spool.id, String(spool.remainingWeightGrams)])),
-      )
+      syncSpoolDrafts(payload.spools, setDraftAssignments, setDraftRemaining)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Failed to update spool.')
     }
@@ -343,163 +344,8 @@ export function FilamentInventory() {
         {loading ? <p className="admin-empty">Loading filament tracker...</p> : null}
         {error ? <p className="admin-empty admin-empty--error">{error}</p> : null}
 
-        <section className="admin-panels admin-panels--filament">
-          <section className="admin-panel">
-            <div className="section-heading">
-              <div>
-                <p className="section-heading__eyebrow">Add spool</p>
-                <h2>Register a new spool</h2>
-              </div>
-            </div>
-
-            <div className="student-form-grid">
-              <label className="student-field">
-                <span className="student-field__label">Brand</span>
-                <input
-                  className="student-field__input"
-                  value={form.brand}
-                  onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))}
-                  placeholder="Polymaker"
-                />
-              </label>
-
-              <label className="student-field">
-                <span className="student-field__label">Material</span>
-                <input
-                  className="student-field__input"
-                  value={form.material}
-                  onChange={(event) => setForm((current) => ({ ...current, material: event.target.value }))}
-                  placeholder="PLA"
-                />
-              </label>
-
-              <label className="student-field">
-                <span className="student-field__label">Total amount (g)</span>
-                <input
-                  className="student-field__input"
-                  inputMode="decimal"
-                  value={form.totalWeightGrams}
-                  onChange={(event) => setForm((current) => ({ ...current, totalWeightGrams: event.target.value }))}
-                  placeholder="1000"
-                />
-              </label>
-
-              <label className="student-field">
-                <span className="student-field__label">Amount left (g)</span>
-                <input
-                  className="student-field__input"
-                  inputMode="decimal"
-                  value={form.remainingWeightGrams}
-                  onChange={(event) => setForm((current) => ({ ...current, remainingWeightGrams: event.target.value }))}
-                  placeholder="Leave blank to match total"
-                />
-              </label>
-
-              <label className="student-field">
-                <span className="student-field__label">How many to add</span>
-                <div className="student-stepper">
-                  <button
-                    type="button"
-                    className="student-stepper__button"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        quantity: String(Math.max(1, parseQuantity(current.quantity) - 1)),
-                      }))
-                    }
-                  >
-                    -
-                  </button>
-                  <input
-                    className="student-field__input student-field__input--stepper"
-                    inputMode="numeric"
-                    value={form.quantity}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        quantity: event.target.value,
-                      }))
-                    }
-                    onBlur={() =>
-                      setForm((current) => ({
-                        ...current,
-                        quantity: String(parseQuantity(current.quantity)),
-                      }))
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="student-stepper__button"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        quantity: String(Math.min(50, parseQuantity(current.quantity) + 1)),
-                      }))
-                    }
-                  >
-                    +
-                  </button>
-                </div>
-                <span className="student-field__hint">
-                  Add multiple matching spools at once. If a printer is selected, only the first spool will be assigned.
-                </span>
-              </label>
-
-              <label className="student-field">
-                <span className="student-field__label">Active printer</span>
-                <select
-                  className="student-field__input filament-select"
-                  value={form.activePrinterId}
-                  onChange={(event) => setForm((current) => ({ ...current, activePrinterId: event.target.value }))}
-                >
-                  <option value="">Not assigned</option>
-                  {printers.map((printer) => (
-                    <option key={printer.id} value={printer.id}>
-                      {printer.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="student-field">
-                <span className="student-field__label">Color (optional)</span>
-                <input
-                  className="student-field__input"
-                  value={form.colorName}
-                  onChange={(event) => setForm((current) => ({ ...current, colorName: event.target.value }))}
-                  placeholder="White"
-                />
-              </label>
-
-              <label className="student-field student-field--full">
-                <span className="student-field__label">Notes (optional)</span>
-                <textarea
-                  className="student-field__input student-field__input--textarea"
-                  value={form.notes}
-                  onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                  rows={3}
-                  placeholder="Optional notes for this spool."
-                />
-              </label>
-            </div>
-
-            <button
-              type="button"
-              className="admin-button admin-button--primary"
-              disabled={saving}
-              onClick={() => {
-                void handleCreateSpool()
-              }}
-            >
-              {saving
-                ? 'Saving Spools...'
-                : parseQuantity(form.quantity) === 1
-                  ? 'Add Spool'
-                  : `Add ${parseQuantity(form.quantity)} Spools`}
-            </button>
-          </section>
-
-          <section className="admin-panel">
+        <section className="admin-panel">
+          <div className="admin-panel__header-row">
             <div className="section-heading">
               <div>
                 <p className="section-heading__eyebrow">Inventory</p>
@@ -507,85 +353,109 @@ export function FilamentInventory() {
               </div>
             </div>
 
-            {spools.length === 0 && !loading ? <p className="admin-empty">No spools have been added yet.</p> : null}
+            <button
+              type="button"
+              className="admin-button admin-button--primary tooltip-trigger"
+              data-tooltip="Add one or more new spools."
+              onClick={() => {
+                setError(null)
+                setIsCreateModalOpen(true)
+              }}
+            >
+              Add Spools
+            </button>
+          </div>
 
-            {spools.length > 0 ? (
-              <div className="student-table-wrap">
-                <table className="student-table filament-table">
-                  <thead>
-                    <tr>
-                      <th>Brand</th>
-                      <th>Material</th>
-                      <th>Color</th>
-                      <th>Total</th>
-                      <th>Left</th>
-                      <th>Reserved</th>
-                      <th>Usable</th>
-                      <th>Status</th>
-                      <th>Active printer</th>
-                      <th>Save</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {spools.map((spool) => {
-                      const activePrinter = printers.find((printer) => printer.id === spool.activePrinterId) ?? null
-                      return (
-                        <tr key={spool.id}>
-                          <td>{spool.brand}</td>
-                          <td>{spool.material}</td>
-                          <td>{spool.colorName ?? '—'}</td>
-                          <td>{formatWeight(spool.totalWeightGrams)}</td>
-                          <td>
-                            <input
-                              className="student-field__input filament-table__input"
-                              inputMode="decimal"
-                              value={draftRemaining[spool.id] ?? String(spool.remainingWeightGrams)}
-                              onChange={(event) =>
-                                setDraftRemaining((current) => ({ ...current, [spool.id]: event.target.value }))
-                              }
-                            />
-                          </td>
-                          <td>{formatWeight(spool.reservedWeightGrams)}</td>
-                          <td>{formatWeight(spool.usableWeightGrams)}</td>
-                          <td>{getFilamentStatusLabel(spool)}</td>
-                          <td>
-                            <select
-                              className="student-field__input filament-select filament-table__input"
-                              value={draftAssignments[spool.id] ?? ''}
-                              onChange={(event) =>
-                                setDraftAssignments((current) => ({ ...current, [spool.id]: event.target.value }))
-                              }
-                            >
-                              <option value="">Not assigned</option>
-                              {printers.map((printer) => (
-                                <option key={printer.id} value={printer.id}>
-                                  {printer.name}
-                                </option>
-                              ))}
-                            </select>
-                            <p className="detail filament-table__printer">
-                              {activePrinter ? activePrinter.name : 'No printer selected'}
-                            </p>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="admin-button admin-button--secondary filament-table__button"
-                              onClick={() => {
-                                void handleSaveSpool(spool.id)
-                              }}
-                            >
-                              Save
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </section>
+          {spools.length === 0 && !loading ? <p className="admin-empty">No spools have been added yet.</p> : null}
+
+          {spools.length > 0 ? (
+            <div className="student-table-wrap">
+              <table className="student-table filament-table">
+                <colgroup>
+                  <col className="filament-table__col filament-table__col--brand" />
+                  <col className="filament-table__col filament-table__col--material" />
+                  <col className="filament-table__col filament-table__col--color" />
+                  <col className="filament-table__col filament-table__col--total" />
+                  <col className="filament-table__col filament-table__col--left" />
+                  <col className="filament-table__col filament-table__col--reserved" />
+                  <col className="filament-table__col filament-table__col--usable" />
+                  <col className="filament-table__col filament-table__col--status" />
+                  <col className="filament-table__col filament-table__col--printer" />
+                  <col className="filament-table__col filament-table__col--save" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Brand</th>
+                    <th>Material</th>
+                    <th>Color</th>
+                    <th>Total</th>
+                    <th>Grams left</th>
+                    <th>Reserved</th>
+                    <th>Usable</th>
+                    <th>Status</th>
+                    <th>Active printer</th>
+                    <th>Save</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {spools.map((spool) => {
+                    const activePrinter = printers.find((printer) => printer.id === spool.activePrinterId) ?? null
+                    return (
+                      <tr key={spool.id}>
+                        <td>{spool.brand}</td>
+                        <td>{spool.material}</td>
+                        <td>{spool.colorName ?? '-'}</td>
+                        <td>{formatWeight(spool.totalWeightGrams)}</td>
+                        <td>
+                          <input
+                            className="student-field__input filament-table__input"
+                            inputMode="decimal"
+                            value={draftRemaining[spool.id] ?? String(spool.remainingWeightGrams)}
+                            onChange={(event) =>
+                              setDraftRemaining((current) => ({ ...current, [spool.id]: event.target.value }))
+                            }
+                          />
+                        </td>
+                        <td>{formatWeight(spool.reservedWeightGrams)}</td>
+                        <td>{formatWeight(spool.usableWeightGrams)}</td>
+                        <td>{getFilamentStatusLabel(spool)}</td>
+                        <td>
+                          <select
+                            className="student-field__input filament-select filament-table__input"
+                            value={draftAssignments[spool.id] ?? ''}
+                            onChange={(event) =>
+                              setDraftAssignments((current) => ({ ...current, [spool.id]: event.target.value }))
+                            }
+                          >
+                            <option value="">Not assigned</option>
+                            {printers.map((printer) => (
+                              <option key={printer.id} value={printer.id}>
+                                {printer.name}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="detail filament-table__printer">
+                            {activePrinter ? activePrinter.name : 'No printer selected'}
+                          </p>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="admin-button admin-button--secondary filament-table__button"
+                            onClick={() => {
+                              void handleSaveSpool(spool.id)
+                            }}
+                          >
+                            Save
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </section>
 
         <section className="admin-panel">
@@ -606,16 +476,209 @@ export function FilamentInventory() {
                     <p className="admin-alert-item__title">{formatFilamentEventTitle(event)}</p>
                     <p className="admin-alert-item__meta">{formatTimestamp(event.createdAt)}</p>
                   </div>
-                  <p className="admin-alert-item__detail">
-                    {formatWeight(event.grams)}
-                    {event.printerId ? ` | Printer ${event.printerId}` : ''}
-                  </p>
+                  <p className="admin-alert-item__detail">{getFilamentEventMetricLabel(event, printers, spools)}</p>
                   {event.note ? <p className="admin-alert-item__detail">{event.note}</p> : null}
                 </article>
               ))}
             </div>
           ) : null}
         </section>
+
+        {isCreateModalOpen ? (
+          <div
+            className="modal-backdrop"
+            onClick={() => {
+              if (!saving) {
+                setIsCreateModalOpen(false)
+              }
+            }}
+          >
+            <section
+              className="modal-card modal-card--filament"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-spool-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-header">
+                <div className="section-heading">
+                  <div>
+                    <p className="section-heading__eyebrow">Add spool</p>
+                    <h2 id="add-spool-title">Register new spools</h2>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="modal-close"
+                  aria-label="Close add spool window"
+                  disabled={saving}
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {error ? <p className="admin-empty admin-empty--error">{error}</p> : null}
+
+              <div className="student-form-grid">
+                <label className="student-field">
+                  <span className="student-field__label">Brand</span>
+                  <input
+                    className="student-field__input"
+                    value={form.brand}
+                    onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))}
+                    placeholder="Polymaker"
+                  />
+                </label>
+
+                <label className="student-field">
+                  <span className="student-field__label">Material</span>
+                  <input
+                    className="student-field__input"
+                    value={form.material}
+                    onChange={(event) => setForm((current) => ({ ...current, material: event.target.value }))}
+                    placeholder="PLA"
+                  />
+                </label>
+
+                <label className="student-field">
+                  <span className="student-field__label">Total amount (g)</span>
+                  <input
+                    className="student-field__input"
+                    inputMode="decimal"
+                    value={form.totalWeightGrams}
+                    onChange={(event) => setForm((current) => ({ ...current, totalWeightGrams: event.target.value }))}
+                    placeholder="1000"
+                  />
+                </label>
+
+                <label className="student-field">
+                  <span className="student-field__label">Amount left (g)</span>
+                  <input
+                    className="student-field__input"
+                    inputMode="decimal"
+                    value={form.remainingWeightGrams}
+                    onChange={(event) => setForm((current) => ({ ...current, remainingWeightGrams: event.target.value }))}
+                    placeholder="Leave blank to match total"
+                  />
+                </label>
+
+                <label className="student-field">
+                  <span className="student-field__label">How many to add</span>
+                  <div className="student-stepper">
+                    <button
+                      type="button"
+                      className="student-stepper__button"
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          quantity: String(Math.max(1, parseQuantity(current.quantity) - 1)),
+                        }))
+                      }
+                    >
+                      -
+                    </button>
+                    <input
+                      className="student-field__input student-field__input--stepper"
+                      inputMode="numeric"
+                      value={form.quantity}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          quantity: event.target.value,
+                        }))
+                      }
+                      onBlur={() =>
+                        setForm((current) => ({
+                          ...current,
+                          quantity: String(parseQuantity(current.quantity)),
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="student-stepper__button"
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          quantity: String(Math.min(50, parseQuantity(current.quantity) + 1)),
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="student-field__hint">
+                    Add multiple matching spools at once. If a printer is selected, only the first spool will be assigned.
+                  </span>
+                </label>
+
+                <label className="student-field">
+                  <span className="student-field__label">Active printer</span>
+                  <select
+                    className="student-field__input filament-select"
+                    value={form.activePrinterId}
+                    onChange={(event) => setForm((current) => ({ ...current, activePrinterId: event.target.value }))}
+                  >
+                    <option value="">Not assigned</option>
+                    {printers.map((printer) => (
+                      <option key={printer.id} value={printer.id}>
+                        {printer.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="student-field">
+                  <span className="student-field__label">Color (optional)</span>
+                  <input
+                    className="student-field__input"
+                    value={form.colorName}
+                    onChange={(event) => setForm((current) => ({ ...current, colorName: event.target.value }))}
+                    placeholder="White"
+                  />
+                </label>
+
+                <label className="student-field student-field--full">
+                  <span className="student-field__label">Notes (optional)</span>
+                  <textarea
+                    className="student-field__input student-field__input--textarea"
+                    value={form.notes}
+                    onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+                    rows={3}
+                    placeholder="Optional notes for this spool."
+                  />
+                </label>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="admin-button admin-button--secondary"
+                  disabled={saving}
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="admin-button admin-button--primary"
+                  disabled={saving}
+                  onClick={() => {
+                    void handleCreateSpool()
+                  }}
+                >
+                  {saving
+                    ? 'Saving Spools...'
+                    : parseQuantity(form.quantity) === 1
+                      ? 'Add Spool'
+                      : `Add ${parseQuantity(form.quantity)} Spools`}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </section>
     </main>
   )
@@ -671,6 +734,28 @@ function formatFilamentEventTitle(event: FilamentEvent) {
   }
 }
 
+function getFilamentEventPrinterLabel(event: FilamentEvent, printers: Printer[]) {
+  if (!event.printerId) {
+    return 'Unknown printer'
+  }
+
+  const printer = printers.find((item) => item.id === event.printerId)
+  return printer?.name ?? 'Unknown printer'
+}
+
+function getFilamentEventMetricLabel(event: FilamentEvent, printers: Printer[], spools: FilamentSpool[]) {
+  const printerLabel = event.printerId ? getFilamentEventPrinterLabel(event, printers) : null
+  const spool = spools.find((item) => item.id === event.spoolId) ?? null
+
+  if (event.eventType === 'assign' || event.eventType === 'unassign') {
+    const parts = [spool ? `${formatWeight(spool.remainingWeightGrams)} left` : null, printerLabel].filter(Boolean)
+    return parts.length > 0 ? parts.join(' | ') : 'Spool updated'
+  }
+
+  const parts = [formatWeight(event.grams), printerLabel].filter(Boolean)
+  return parts.join(' | ')
+}
+
 function getFilamentStatusLabel(spool: FilamentSpool) {
   if (spool.usableWeightGrams <= 0) {
     return 'Out'
@@ -703,4 +788,13 @@ function parseQuantity(value: string) {
   }
 
   return Math.min(Math.max(parsed, 1), 50)
+}
+
+function syncSpoolDrafts(
+  spoolData: FilamentSpool[],
+  setDraftAssignments: Dispatch<SetStateAction<Record<string, string>>>,
+  setDraftRemaining: Dispatch<SetStateAction<Record<string, string>>>,
+) {
+  setDraftAssignments(Object.fromEntries(spoolData.map((spool) => [spool.id, spool.activePrinterId ?? ''])))
+  setDraftRemaining(Object.fromEntries(spoolData.map((spool) => [spool.id, String(spool.remainingWeightGrams)])))
 }
