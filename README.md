@@ -38,10 +38,14 @@ Print-Ledger-Assistant/
 ├── rules.md            # System logic & behavior rules
 ├── LICENSE             # MIT
 └── README.md
-🚀 Getting Started1. Supabase ConfigurationThis project interacts directly with Supabase tables. Ensure your tables (Students, Jobs, Printers, Filament) are accessible via the Anon Key.2. Environment SetupCreate a .env file in the client directory:Code snippetVITE_SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
-VITE_SUPABASE_ANON_KEY=your-long-anon-key-string-goes-here
-PORT=3000
-3. InstallationBashcd client
+
+🚀 Getting Started1. Supabase SetupEnsure your Supabase tables (Students, Jobs, Printers, Filament) are configured. This project uses direct table access via the Anon Key.2. Environment ConfigurationCreate a .env file in the server directory:Code snippetPORT=3000
+SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
+SUPABASE_ANON_KEY=your-long-anon-key-string-goes-here
+3. InstallationStart the Backend:Bashcd server
 npm install
 npm run dev
-⚙️ Printer Control Logic (Port 8899)The system polls printers every second to enforce lab policy:CommandUsageDescription~M27StatusChecks if the printer is currently building/busy.~M105TelemetryMonitors extruder and bed temperatures.~M26SnipeImmediately halts current heating or print if unauthorized.Auth PolicyAuth Window: 2 minutes to start a print after kiosk check-in.Unauthorized State: If ~M105 shows heating OR ~M27 shows busy without an active DB session, the watchdog triggers ~M26.🤝 SupportFor issues or feature requests, please refer to the rules.md for implementation guardrails or open a GitHub issue.Maintained by: @cristobairl
+Start the Frontend:Bashcd client
+npm install
+npm run dev
+⚙️ Printer Control Logic (Port 8899)The watchdog polls printers every second based on FlashForge API Docs:CommandPurposeDescription~M27StatusInspects if the printer is currently building.~M105TelemetryMonitors real-time extruder/bed temperatures.~M26SnipeAborts unauthorized heating or printing activity.PoliciesAuthorization Window: 2 minutes.Snipe Trigger: If ~M105 shows active heating or ~M27 shows a busy state without an authorized session in the DB, ~M26 is sent immediately.🤝 SupportMaintainer: @cristobairlLicense: MIT
