@@ -4,7 +4,7 @@ Print Ledger Assistant is a kiosk-based 3D print lab management system that comb
 
 It is designed to give labs a lightweight control layer without requiring proprietary printer hardware, premium printers, or separate spool readers. 
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![Hackabull](https://img.shields.io/badge/Hackabull-Participant-blue) ![HackUSF](https://img.shields.io/badge/HackUSF-Winner-gold) ![License](https://img.shields.io/badge/license-MIT-blue)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![Hackabull](https://img.shields.io/badge/Hackabull-Participant-blue) ![HackUSF](https://img.shields.io/badge/HackUSF-Participant-blue) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
