@@ -196,6 +196,21 @@ export function AdminLanding() {
 
   const fleetPrinters = useMemo(() => [...printers].sort(compareFleetPrinters), [printers])
   const monitoredPrinters = printers.filter((printer) => printer.enforcement.state !== 'idle')
+  const spotlightPrinters = useMemo(() => {
+    const spotlightMap = new Map<string, Printer>()
+
+    monitoredPrinters.forEach((printer) => {
+      spotlightMap.set(printer.id, printer)
+    })
+
+    fleetPrinters.forEach((printer) => {
+      if (isPrinterActivelyRunning(printer)) {
+        spotlightMap.set(printer.id, printer)
+      }
+    })
+
+    return [...spotlightMap.values()].sort(compareFleetPrinters)
+  }, [fleetPrinters, monitoredPrinters])
   const timeLabel = formatClock(new Date(nowMs))
   const inactivityRemainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - (nowMs - lastInteractionMs))
 
@@ -253,268 +268,314 @@ export function AdminLanding() {
   return (
     <main className="admin-screen">
       <section className="admin-shell">
-        <header className="student-topbar">
-          <div className="student-brand">
-            <span className="student-brand__mark">PLA</span>
+        <section className="admin-intro-card">
+          <div className="admin-intro-card__top">
+            <div className="student-brand">
+              <span className="student-brand__mark">PLA</span>
+              <div>
+                <p className="student-panel__eyebrow">Print Ledger Assistant</p>
+                <p className="student-brand__subtle">Admin station</p>
+              </div>
+            </div>
+            <div className="student-clock" aria-label={`Current time ${timeLabel}`}>
+              {timeLabel}
+            </div>
+          </div>
+
+          <div className="admin-intro-card__body">
+            <div className="admin-intro-card__welcome">
+              <p className="student-panel__eyebrow">Admin access</p>
+              <h1>Welcome back, {state.firstName}</h1>
+              <p className="admin-intro-card__id">
+                {state.cardId ? `Card ${state.cardId}` : 'Card recognized'}
+              </p>
+            </div>
+
+            <div className="admin-intro-card__session">
+              <div className="admin-intro-card__session-copy">
+                <p className="session-guard__eyebrow">Kiosk session</p>
+                <p className="session-guard__message">
+                  Session will be closed automatically in {formatCountdown(inactivityRemainingMs)} if this screen stays inactive.
+                </p>
+              </div>
+
+              <div className="session-guard__actions">
+                <div className="session-guard__timer" aria-live="polite">
+                  <span className="label">Auto close</span>
+                  <strong>{formatCountdown(inactivityRemainingMs)}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="session-guard__button tooltip-trigger"
+                  data-tooltip="End this admin session and return to swipe."
+                  disabled={closingSession}
+                  onClick={() => {
+                    void handleCloseSession()
+                  }}
+                >
+                  {closingSession ? 'Closing Session...' : 'Close Session'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="admin-panel admin-overview-panel">
+          <div className="section-heading">
             <div>
-              <p className="student-panel__eyebrow">Print Ledger Assistant</p>
-              <p className="student-brand__subtle">Admin station</p>
+              <p className="section-heading__eyebrow">Overview</p>
+              <h2>Admin summary</h2>
             </div>
           </div>
-          <div className="student-clock" aria-label={`Current time ${timeLabel}`}>
-            {timeLabel}
-          </div>
-        </header>
 
-        <section className="session-guard">
-          <div className="session-guard__copy">
-            <p className="session-guard__eyebrow">Kiosk session</p>
-            <p className="session-guard__message">
-              Session will be closed automatically in {formatCountdown(inactivityRemainingMs)} if this screen stays inactive.
-            </p>
-          </div>
-
-          <div className="session-guard__actions">
-            <div className="session-guard__timer" aria-live="polite">
-              <span className="label">Auto close</span>
-              <strong>{formatCountdown(inactivityRemainingMs)}</strong>
-            </div>
-            <button
-              type="button"
-              className="session-guard__button tooltip-trigger"
-              data-tooltip="End this admin session and return to swipe."
-              disabled={closingSession}
-              onClick={() => {
-                void handleCloseSession()
-              }}
-            >
-              {closingSession ? 'Closing Session...' : 'Close Session'}
-            </button>
+          <div className="admin-overview-stats">
+            <article className="admin-overview-stat">
+              <span>Online printers</span>
+              <strong>{metrics.online}</strong>
+            </article>
+            <article className="admin-overview-stat">
+              <span>Available now</span>
+              <strong>{metrics.available}</strong>
+            </article>
+            <article className="admin-overview-stat">
+              <span>Watchdog alerts</span>
+              <strong>{metrics.monitored}</strong>
+            </article>
           </div>
         </section>
 
-        <section className="admin-hero">
-          <div className="admin-hero__copy">
-            <p className="student-panel__eyebrow">Admin access</p>
-            <h1>Welcome back, {state.firstName}</h1>
-            <p className="admin-hero__id">
-              {state.cardId ? `Card ${state.cardId}` : 'Card recognized'}
-            </p>
-          </div>
-
-          <div className="admin-actions">
-            <button
-              type="button"
-              className="admin-button admin-button--primary tooltip-trigger"
-              data-tooltip="Open filament inventory and active spool assignments."
-              onClick={() => navigate('/filament', { state })}
-            >
-              Open Filament Tracker
-            </button>
-            <button
-              type="button"
-              className="admin-button admin-button--secondary tooltip-trigger"
-              data-tooltip="View live printer replies and watchdog status."
-              onClick={() => navigate('/printers', { state })}
-            >
-              Open Printer Diagnostics
-            </button>
-            <button
-              type="button"
-              className="admin-button admin-button--secondary tooltip-trigger"
-              data-tooltip="Return to the swipe screen."
-              onClick={() => navigate('/kiosk', { replace: true })}
-            >
-              Return to Swipe Screen
-            </button>
-          </div>
-        </section>
-
-        <section className="admin-metrics">
-          <article className="admin-metric">
-            <span>Online printers</span>
-            <strong>{metrics.online}</strong>
-          </article>
-          <article className="admin-metric">
-            <span>Available now</span>
-            <strong>{metrics.available}</strong>
-          </article>
-          <article className="admin-metric">
-            <span>Watchdog alerts</span>
-            <strong>{metrics.monitored}</strong>
-          </article>
-        </section>
-
-        <section className="admin-panels">
+        <section className="admin-priority-grid">
           <section className="admin-panel">
             <div className="section-heading">
               <div>
-                <p className="section-heading__eyebrow">Fleet overview</p>
-                <h2>Live printer status</h2>
+                <p className="section-heading__eyebrow">Attention</p>
+                <h2>Active printers</h2>
               </div>
             </div>
 
-            {loading && printers.length === 0 ? <p className="admin-empty">Loading printer status...</p> : null}
+            {loading && printers.length === 0 ? <p className="admin-empty">Loading active printer highlights...</p> : null}
             {error ? <p className="admin-empty admin-empty--error">{error}</p> : null}
 
-            <div className="admin-printer-list">
-              {fleetPrinters.map((printer) => {
-                const availability = mapPrinterAvailability(printer)
+            {spotlightPrinters.length === 0 ? (
+              <p className="admin-empty">No printers need attention right now.</p>
+            ) : (
+              <div className="admin-printer-list">
+                {spotlightPrinters.map((printer) => {
+                  const availability = mapPrinterAvailability(printer)
 
-                return (
-                  <article key={printer.id} className="admin-printer-row">
-                    <div className="admin-printer-row__header">
-                      <div className="admin-printer-row__title">
-                        <span
-                          className={`student-printer-dot student-printer-dot--${availability.tone}`}
-                          aria-hidden="true"
-                        />
-                        <p className="admin-printer-row__name">{printer.name}</p>
+                  return (
+                    <article key={printer.id} className="admin-printer-row">
+                      <div className="admin-printer-row__header">
+                        <div className="admin-printer-row__title">
+                          <span
+                            className={`student-printer-dot student-printer-dot--${availability.tone}`}
+                            aria-hidden="true"
+                          />
+                          <p className="admin-printer-row__name">{printer.name}</p>
+                        </div>
+                        <span className={`status-pill status-pill--${printer.activity.state}`}>
+                          {availability.label}
+                        </span>
                       </div>
-                      <span className={`status-pill status-pill--${printer.activity.state}`}>
-                        {availability.label}
-                      </span>
-                    </div>
-                    <p className="admin-printer-row__meta">
-                      {printer.ip} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
-                    </p>
-                  </article>
-                )
-              })}
-            </div>
+                      <p className="admin-alert-item__detail">{getPriorityPrinterDetail(printer)}</p>
+                      <p className="admin-printer-row__meta">
+                        {printer.ip} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
+                      </p>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
           </section>
 
           <section className="admin-panel">
             <div className="section-heading">
               <div>
-                <p className="section-heading__eyebrow">Security watch</p>
-                <h2>Current attention needed</h2>
+                <p className="section-heading__eyebrow">Admin tasks</p>
+                <h2>Open tools</h2>
               </div>
             </div>
 
-            {monitoredPrinters.length === 0 ? (
-              <p className="admin-empty">No printers are currently flagged by the watchdog.</p>
-            ) : (
+            <div className="admin-action-stack">
+              <button
+                type="button"
+                className="admin-button admin-button--primary admin-button--full tooltip-trigger"
+                data-tooltip="Open filament inventory and active spool assignments."
+                onClick={() => navigate('/filament', { state })}
+              >
+                Open Filament Tracker
+              </button>
+
+              <div className="admin-action-grid">
+                <button
+                  type="button"
+                  className="admin-button admin-button--secondary tooltip-trigger"
+                  data-tooltip="View live printer replies and watchdog status."
+                  onClick={() => navigate('/printers', { state })}
+                >
+                  Open Printer Diagnostics
+                </button>
+                <button
+                  type="button"
+                  className="admin-button admin-button--secondary tooltip-trigger"
+                  data-tooltip="Preview the student landing page."
+                  onClick={() => navigate('/student', { state })}
+                >
+                  Open Student Landing
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="admin-button admin-button--secondary admin-button--full tooltip-trigger"
+                data-tooltip="Return to the swipe screen."
+                onClick={() => navigate('/kiosk', { replace: true })}
+              >
+                Return to Swipe Screen
+              </button>
+            </div>
+          </section>
+        </section>
+
+        <section className="admin-panel">
+          <div className="section-heading">
+            <div>
+              <p className="section-heading__eyebrow">Fleet overview</p>
+              <h2>Live printer status</h2>
+            </div>
+          </div>
+
+          {loading && printers.length === 0 ? <p className="admin-empty">Loading printer status...</p> : null}
+          {error ? <p className="admin-empty admin-empty--error">{error}</p> : null}
+
+          <div className="admin-printer-list">
+            {fleetPrinters.map((printer) => {
+              const availability = mapPrinterAvailability(printer)
+
+              return (
+                <article key={printer.id} className="admin-printer-row">
+                  <div className="admin-printer-row__header">
+                    <div className="admin-printer-row__title">
+                      <span
+                        className={`student-printer-dot student-printer-dot--${availability.tone}`}
+                        aria-hidden="true"
+                      />
+                      <p className="admin-printer-row__name">{printer.name}</p>
+                    </div>
+                    <span className={`status-pill status-pill--${printer.activity.state}`}>
+                      {availability.label}
+                    </span>
+                  </div>
+                  <p className="admin-printer-row__meta">
+                    {printer.ip} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
+                  </p>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="admin-support-grid">
+          <section className="admin-panel">
+            <div className="section-heading">
+              <div>
+                <p className="section-heading__eyebrow">Event history</p>
+                <h2>Recent snipe events</h2>
+              </div>
+            </div>
+
+            {eventsLoading ? <p className="admin-empty">Loading snipe history...</p> : null}
+            {!eventsLoading && eventsError ? <p className="admin-empty admin-empty--error">{eventsError}</p> : null}
+            {!eventsLoading && !eventsError && events.length === 0 ? (
+              <p className="admin-empty">No snipe events have been recorded yet.</p>
+            ) : null}
+
+            {!eventsLoading && !eventsError && events.length > 0 ? (
               <div className="admin-alert-list">
-                {monitoredPrinters.map((printer) => (
-                  <article key={printer.id} className="admin-alert-item">
-                    <p className="admin-alert-item__title">{printer.name}</p>
-                    <p className="admin-alert-item__detail">{printer.activity.reason}</p>
+                {events.map((event) => (
+                  <article key={event.id} className="admin-alert-item">
+                    <div className="admin-alert-item__header">
+                      <p className="admin-alert-item__title">{event.title}</p>
+                      <p className="admin-alert-item__meta">{formatEventTimestamp(event.timestamp)}</p>
+                    </div>
+                    <p className="admin-alert-item__detail">
+                      {event.printerName}
+                      {event.studentLabel ? ` | ${event.studentLabel}` : ''}
+                    </p>
+                    <p className="admin-alert-item__detail">{event.detail}</p>
                   </article>
                 ))}
               </div>
-            )}
+            ) : null}
+          </section>
 
-            <div className="admin-panel__section">
-              <div className="section-heading">
-                <div>
-                  <p className="section-heading__eyebrow">Event history</p>
-                  <h2>Recent snipe events</h2>
-                </div>
+          <section className="admin-panel">
+            <div className="section-heading">
+              <div>
+                <p className="section-heading__eyebrow">Print rules</p>
+                <h2>Time limit per print</h2>
               </div>
-
-              {eventsLoading ? <p className="admin-empty">Loading snipe history...</p> : null}
-              {!eventsLoading && eventsError ? <p className="admin-empty admin-empty--error">{eventsError}</p> : null}
-              {!eventsLoading && !eventsError && events.length === 0 ? (
-                <p className="admin-empty">No snipe events have been recorded yet.</p>
-              ) : null}
-
-              {!eventsLoading && !eventsError && events.length > 0 ? (
-                <div className="admin-alert-list">
-                  {events.map((event) => (
-                    <article key={event.id} className="admin-alert-item">
-                      <div className="admin-alert-item__header">
-                        <p className="admin-alert-item__title">{event.title}</p>
-                        <p className="admin-alert-item__meta">{formatEventTimestamp(event.timestamp)}</p>
-                      </div>
-                      <p className="admin-alert-item__detail">
-                        {event.printerName}
-                        {event.studentLabel ? ` | ${event.studentLabel}` : ''}
-                      </p>
-                      <p className="admin-alert-item__detail">{event.detail}</p>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
             </div>
 
-            <div className="admin-panel__section">
-              <div className="section-heading">
-                <div>
-                  <p className="section-heading__eyebrow">Print rules</p>
-                  <h2>Time limit per print</h2>
-                </div>
+            {policyLoading ? <p className="admin-empty">Loading print rules...</p> : null}
+            {policyError ? <p className="admin-empty admin-empty--error">{policyError}</p> : null}
+
+            {!policyLoading ? (
+              <div className="admin-setting-row">
+                <label className="student-field admin-setting-field">
+                  <span className="student-field__label">Maximum print time (hours)</span>
+                  <div className="student-stepper">
+                    <button
+                      type="button"
+                      className="student-stepper__button"
+                      onClick={() =>
+                        setPrintPolicy((current) => ({
+                          maxPrintHours: Math.max(1, current.maxPrintHours - 1),
+                        }))
+                      }
+                    >
+                      -
+                    </button>
+                    <input
+                      className="student-field__input student-field__input--stepper"
+                      inputMode="numeric"
+                      value={String(printPolicy.maxPrintHours)}
+                      onChange={(event) => {
+                        const nextValue = Number.parseInt(event.target.value, 10)
+                        setPrintPolicy((current) => ({
+                          maxPrintHours: Number.isFinite(nextValue)
+                            ? Math.min(Math.max(nextValue, 1), 24)
+                            : current.maxPrintHours,
+                        }))
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="student-stepper__button"
+                      onClick={() =>
+                        setPrintPolicy((current) => ({
+                          maxPrintHours: Math.min(24, current.maxPrintHours + 1),
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                </label>
+
+                <button
+                  type="button"
+                  className="admin-button admin-button--primary tooltip-trigger"
+                  data-tooltip="Apply this maximum print time."
+                  disabled={policySaveState === 'saving'}
+                  onClick={() => {
+                    void handleSavePrintPolicy()
+                  }}
+                >
+                  {policySaveState === 'saving' ? 'Saving...' : 'Save Rule'}
+                </button>
               </div>
-
-              {policyLoading ? <p className="admin-empty">Loading print rules...</p> : null}
-              {policyError ? <p className="admin-empty admin-empty--error">{policyError}</p> : null}
-
-              {!policyLoading ? (
-                <div className="admin-setting-row">
-                  <label className="student-field admin-setting-field">
-                    <span className="student-field__label">Maximum print time (hours)</span>
-                    <div className="student-stepper">
-                      <button
-                        type="button"
-                        className="student-stepper__button"
-                        onClick={() =>
-                          setPrintPolicy((current) => ({
-                            maxPrintHours: Math.max(1, current.maxPrintHours - 1),
-                          }))
-                        }
-                      >
-                        -
-                      </button>
-                      <input
-                        className="student-field__input student-field__input--stepper"
-                        inputMode="numeric"
-                        value={String(printPolicy.maxPrintHours)}
-                        onChange={(event) => {
-                          const nextValue = Number.parseInt(event.target.value, 10)
-                          setPrintPolicy((current) => ({
-                            maxPrintHours: Number.isFinite(nextValue)
-                              ? Math.min(Math.max(nextValue, 1), 24)
-                              : current.maxPrintHours,
-                          }))
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="student-stepper__button"
-                        onClick={() =>
-                          setPrintPolicy((current) => ({
-                            maxPrintHours: Math.min(24, current.maxPrintHours + 1),
-                          }))
-                        }
-                      >
-                        +
-                      </button>
-                    </div>
-                  </label>
-
-                  <button
-                    type="button"
-                    className="admin-button admin-button--primary tooltip-trigger"
-                    data-tooltip="Apply this maximum print time."
-                    disabled={policySaveState === 'saving'}
-                    onClick={() => {
-                      void handleSavePrintPolicy()
-                    }}
-                  >
-                    {policySaveState === 'saving' ? 'Saving...' : 'Save Rule'}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              className="admin-button admin-button--secondary admin-button--full tooltip-trigger"
-              data-tooltip="Preview the student landing page."
-              onClick={() => navigate('/student', { state })}
-            >
-              Open Student Landing
-            </button>
+            ) : null}
           </section>
         </section>
       </section>
@@ -573,6 +634,25 @@ function getFleetPrinterPriority(printer: Printer) {
   }
 
   return 1
+}
+
+function isPrinterActivelyRunning(printer: Printer) {
+  return (
+    printer.connectivity.state === 'online' &&
+    (
+      printer.activity.state === 'printing' ||
+      printer.activity.state === 'heating' ||
+      printer.authorization.sessionState === 'active_print'
+    )
+  )
+}
+
+function getPriorityPrinterDetail(printer: Printer) {
+  if (printer.enforcement.state !== 'idle') {
+    return printer.enforcement.reason
+  }
+
+  return printer.activity.reason
 }
 
 function formatCountdown(remainingMs: number) {

@@ -1,3 +1,7 @@
+/* =========================================
+   GLOBAL VARIABLES & THEME
+   ========================================= */
+/* CSS Variables (Custom Properties) act like global constants. We define them on the root element so they can be accessed by any file (like App.css) using var(--variable-name). */
 :root {
   font-family: Bahnschrift, "Segoe UI Variable Text", "Segoe UI", sans-serif;
   line-height: 1.5;
@@ -10,6 +14,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
   --surface: rgba(255, 255, 255, 0.82);
   --surface-alt: rgba(247, 249, 244, 0.96);
   --line: rgba(47, 70, 65, 0.12);
@@ -18,10 +23,14 @@
   --shadow-soft: 0 18px 40px rgba(30, 52, 48, 0.08);
 }
 
+/* =========================================
+   GLOBAL RESETS
+   ========================================= */
 * {
   box-sizing: border-box;
 }
 
+/* Ensures the body takes up at least the full height of the viewport (screen), preventing background clipping on short pages. */
 html,
 body,
 #root {
@@ -44,7 +53,11 @@ a {
   color: inherit;
 }
 
+/* =========================================
+   TYPOGRAPHY
+   ========================================= */
 h1 {
+  /* clamp(MIN, VAL, MAX) acts like a dynamic boundary. It allows the font to scale with the viewport width (4vw) but never go smaller than 2rem or larger than 2.6rem. */
   font-size: clamp(2rem, 4vw, 2.6rem);
   line-height: 1.05;
 }
