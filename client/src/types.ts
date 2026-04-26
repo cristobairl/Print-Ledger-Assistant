@@ -1,17 +1,41 @@
-export type PrinterStatus = 'idle' | 'armed' | 'printing' | 'sniped'
-
 export type Printer = {
   id: string
   name: string
   ip: string
-  location: string
-  status: PrinterStatus
-  activeJob: string
-  material: string
-  nozzleTemp: number
-  bedTemp: number
-  progress: number
-  lastSeen: string
+  authorization: {
+    state: 'authorized' | 'unauthorized'
+  }
+  connectivity: {
+    state: 'online' | 'offline'
+    lastSeenAt: string | null
+    lastError: string | null
+    lastPort: number | null
+  }
+  activity: {
+    state: 'idle' | 'heating' | 'printing' | 'unknown'
+    source: 'm27-status' | 'temperature-heuristic'
+    reason: string
+    command: '~M27'
+    rawResponse: string | null
+  }
+  telemetry: {
+    command: '~M105'
+    rawResponse: string | null
+    nozzle: {
+      current: number | null
+      target: number | null
+    }
+    bed: {
+      current: number | null
+      target: number | null
+    }
+  }
+  enforcement: {
+    mode: 'observe-only'
+    state: 'idle' | 'monitoring'
+    lastAction: 'none'
+    reason: string
+  }
 }
 
 export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped'

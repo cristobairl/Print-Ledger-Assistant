@@ -86,6 +86,7 @@ router.post('/swipe', async (req: Request, res: Response) => {
   return res.json({
     authorized: true,
     student_id: student.id,
+    card_id: student.card_id ?? parsed.card_id,
     first_name: student.first_name,
     last_name: student.last_name,
     is_admin: Boolean(student.is_admin) || Boolean(adminMode),

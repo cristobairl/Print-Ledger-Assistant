@@ -1,4 +1,28 @@
 import { Router } from 'express'
+import { radar } from '../server'
+
 const router = Router()
-// coming soon
+
+router.get('/status', (req, res) => {
+  res.json(radar.getStatus())
+})
+
+router.post('/:printerId/authorize', (req, res) => {
+  const updated = radar.authorize(req.params.printerId)
+  if (!updated) {
+    return res.status(404).json({ error: 'Printer not found' })
+  }
+
+  return res.json({ ok: true, printers: radar.getStatus() })
+})
+
+router.post('/:printerId/deauthorize', (req, res) => {
+  const updated = radar.deauthorize(req.params.printerId)
+  if (!updated) {
+    return res.status(404).json({ error: 'Printer not found' })
+  }
+
+  return res.json({ ok: true, printers: radar.getStatus() })
+})
+
 export default router

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 type SwipeResponse = {
   authorized?: boolean
   first_name?: string
+  card_id?: string
+  student_id?: string
   error?: string
   is_admin?: boolean
   created?: boolean
@@ -97,6 +99,7 @@ export function Kiosk() {
           navigate('/student', {
             state: {
               firstName: data.first_name ?? 'Student',
+              cardId: data.card_id ?? data.student_id ?? 'Unknown card',
               isAdmin: Boolean(data.is_admin),
               created: Boolean(data.created),
             },
@@ -117,6 +120,7 @@ export function Kiosk() {
         navigate('/student', {
           state: {
             firstName: 'Demo',
+            cardId: 'DEMO-0001',
             isAdmin: adminMode,
             created: true,
           },
