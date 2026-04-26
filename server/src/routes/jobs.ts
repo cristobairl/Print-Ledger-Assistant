@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../db'
 import { getPrintPolicySettings } from '../print-policy'
+import { radar } from '../server'
 
 const router = Router()
 
@@ -26,6 +27,9 @@ type CreateJobBody = {
   estimatedTimeMinutes?: number | string
   estimatedWeightGrams?: number | string
   jobReason?: string
+  cardId?: string
+  firstName?: string
+  durationMinutes?: number | string
 }
 
 router.get('/student/:studentId', async (req, res) => {
@@ -51,6 +55,71 @@ router.get('/student/:studentId', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const body = (req.body ?? {}) as CreateJobBody
+  const validation = validateCreateJobBody(body)
+  if (validation.error) {
+    return res.status(400).json({ error: validation.error })
+  }
+
+  const input = validation.value as ValidatedCreateJobInput
+  const createdJob = await createJobRecord(input)
+  if (!createdJob.ok) {
+    return res.status(500).json({ error: 'Failed to create the job record.' })
+  }
+
+  return res.status(201).json(createdJob.job)
+})
+
+router.post('/session', async (req, res) => {
+  const body = (req.body ?? {}) as CreateJobBody
+  const validation = validateCreateJobBody(body)
+  if (validation.error) {
+    return res.status(400).json({ error: validation.error })
+  }
+
+  const durationMinutes = toPositiveInteger(body.durationMinutes)
+  const input = validation.value as ValidatedCreateJobInput
+  const createdJob = await createJobRecord(input)
+  if (!createdJob.ok) {
+    return res.status(500).json({ error: 'Failed to create the job record.' })
+  }
+
+  const authorized = radar.authorize(input.printerId, {
+    studentId: input.studentId,
+    cardId: body.cardId?.trim() || null,
+    firstName: body.firstName?.trim() || null,
+    jobId: createdJob.job.id,
+    durationMinutes,
+  })
+
+  if (!authorized) {
+    const rollback = await deleteJobRecord(createdJob.job.id)
+    if (!rollback.ok) {
+      console.error(`[Jobs] Failed to roll back job ${createdJob.job.id} after printer authorize failure.`)
+    }
+
+    return res.status(404).json({ error: 'Printer not found.' })
+  }
+
+  return res.status(201).json({
+    job: createdJob.job,
+    printers: radar.getStatus(),
+  })
+})
+
+type ValidatedCreateJobInput = {
+  studentId: string
+  printerId: string
+  fileName: string
+  estimatedTimeMinutes: number
+  estimatedWeightGrams: number
+  jobReason: string
+}
+
+type CreateJobValidationResult =
+  | { error: string; value?: never }
+  | { error: null; value: ValidatedCreateJobInput }
+
+function validateCreateJobBody(body: CreateJobBody): CreateJobValidationResult {
   const studentId = body.studentId?.trim()
   const printerId = body.printerId?.trim()
   const fileName = body.fileName?.trim()
@@ -60,41 +129,55 @@ router.post('/', async (req, res) => {
   const { maxPrintHours } = getPrintPolicySettings()
 
   if (!studentId) {
-    return res.status(400).json({ error: 'Student id is required.' })
+    return { error: 'Student id is required.' }
   }
 
   if (!printerId) {
-    return res.status(400).json({ error: 'Printer id is required.' })
+    return { error: 'Printer id is required.' }
   }
 
   if (!fileName) {
-    return res.status(400).json({ error: 'File name is required.' })
+    return { error: 'File name is required.' }
   }
 
   if (estimatedTimeMinutes === null) {
-    return res.status(400).json({ error: 'Estimated time must be greater than zero.' })
+    return { error: 'Estimated time must be greater than zero.' }
   }
 
   if (estimatedTimeMinutes > maxPrintHours * 60) {
-    return res.status(400).json({ error: `Estimated time cannot exceed ${maxPrintHours} hours.` })
+    return { error: `Estimated time cannot exceed ${maxPrintHours} hours.` }
   }
 
   if (estimatedWeightGrams === null) {
-    return res.status(400).json({ error: 'Estimated weight must be a number greater than zero.' })
+    return { error: 'Estimated weight must be a number greater than zero.' }
   }
 
   if (!jobReason) {
-    return res.status(400).json({ error: 'Job reason is required.' })
+    return { error: 'Job reason is required.' }
   }
 
+  return {
+    error: null,
+    value: {
+      studentId,
+      printerId,
+      fileName,
+      estimatedTimeMinutes,
+      estimatedWeightGrams,
+      jobReason,
+    },
+  }
+}
+
+async function createJobRecord(input: ValidatedCreateJobInput) {
   const insertPayload = {
-    student_id: studentId,
-    printer_id: printerId,
-    file_name: fileName,
+    student_id: input.studentId,
+    printer_id: input.printerId,
+    file_name: input.fileName,
     file_size: null,
-    estimated_time: estimatedTimeMinutes,
-    estimated_weight_grams: Number(estimatedWeightGrams.toFixed(2)),
-    job_reason: jobReason,
+    estimated_time: input.estimatedTimeMinutes,
+    estimated_weight_grams: Number(input.estimatedWeightGrams.toFixed(2)),
+    job_reason: input.jobReason,
     status: 'queued',
     started_at: null,
     ended_at: null,
@@ -110,11 +193,28 @@ router.post('/', async (req, res) => {
 
   if (error || !data) {
     console.error('[Jobs] Failed to create job record.', error)
-    return res.status(500).json({ error: 'Failed to create the job record.' })
+    return { ok: false as const }
   }
 
-  return res.status(201).json(mapJobRow(data as JobRow))
-})
+  return {
+    ok: true as const,
+    job: mapJobRow(data as JobRow),
+  }
+}
+
+async function deleteJobRecord(jobId: string) {
+  const { error } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', jobId)
+
+  if (error) {
+    console.error(`[Jobs] Failed to delete job ${jobId}.`, error)
+    return { ok: false as const }
+  }
+
+  return { ok: true as const }
+}
 
 function mapJobRow(row: JobRow) {
   return {

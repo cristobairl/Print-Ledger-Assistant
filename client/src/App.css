@@ -378,6 +378,11 @@
   gap: 18px;
 }
 
+.student-details-panel__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 /* =========================================
    STUDENT FORMS & INPUTS
    ========================================= */
@@ -629,6 +634,32 @@
 
 .student-start-button--active {
   background: linear-gradient(145deg, #17231f, #1f7a63);
+}
+
+.modal-card--session {
+  width: min(520px, 100%);
+}
+
+.student-session-modal__detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.student-session-modal__timer {
+  display: grid;
+  gap: 10px;
+  padding: 20px 22px;
+  border-radius: 8px;
+  background: rgba(23, 35, 31, 0.04);
+  border: 1px solid rgba(23, 35, 31, 0.08);
+}
+
+.student-session-modal__timer strong {
+  color: var(--text-strong);
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1;
 }
 
 /* =========================================

@@ -4,6 +4,12 @@ import type { LandingState, PrintPolicySettings, Printer, StudentJob } from '../
 
 const SESSION_MINUTES = 2
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000
+const DEFAULT_JOB_FILE_NAME = 'bull mascot'
+const DEFAULT_JOB_ESTIMATED_HOURS = '4'
+const DEFAULT_JOB_ESTIMATED_MINUTES = '0'
+const DEFAULT_JOB_ESTIMATED_WEIGHT_GRAMS = '250'
+const DEFAULT_JOB_REASON = 'EGN Final Project'
+
 type StudentJobFormState = {
   studentIdentifier: string
   fileName: string
@@ -36,6 +42,7 @@ export function StudentLanding() {
   const [jobForm, setJobForm] = useState<StudentJobFormState>(() => createJobFormState(state))
   const [jobFormSubmitted, setJobFormSubmitted] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
+  const [endingPrintSession, setEndingPrintSession] = useState(false)
   const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({ maxPrintHours: 5 })
   const requestedWeightGrams = toNumber(jobForm.estimatedWeightGrams)
 
@@ -230,9 +237,14 @@ export function StudentLanding() {
     currentSessionPrinter.authorization.expiresAt
       ? Date.parse(currentSessionPrinter.authorization.expiresAt) - nowMs
       : null
+  const showUsbSessionModal = currentSessionPrinter?.authorization.sessionState === 'pending_start'
   const hasLiveSession =
     currentSessionPrinter?.authorization.state === 'authorized' &&
-    currentSessionPrinter.authorization.sessionState !== 'idle'
+    (
+      currentSessionPrinter.authorization.sessionState === 'pending_start' ||
+      currentSessionPrinter.activity.state === 'heating' ||
+      currentSessionPrinter.activity.state === 'printing'
+    )
   const canStartSession =
     Boolean(selectedPrinter) &&
     Boolean(mapPrinterAvailability(selectedPrinter, state, requestedWeightGrams).selectable) &&
@@ -313,57 +325,47 @@ export function StudentLanding() {
     setSessionError(null)
 
     try {
-      const jobResponse = await fetch('http://localhost:3000/jobs', {
+      const sessionResponse = await fetch('http://localhost:3000/jobs/session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           studentId: state.studentId,
+          cardId: state.cardId,
+          firstName: state.firstName,
           printerId: selectedPrinter.id,
           fileName: jobForm.fileName.trim(),
           estimatedTimeMinutes: getEstimatedTimeTotalMinutes(jobForm),
           estimatedWeightGrams: jobForm.estimatedWeightGrams,
           jobReason: jobForm.jobReason.trim(),
+          durationMinutes: SESSION_MINUTES,
         }),
       })
 
-      const jobPayload = (await jobResponse.json()) as StudentJob | { error?: string }
-      if (!jobResponse.ok || !('id' in jobPayload)) {
+      const sessionPayload = (await sessionResponse.json()) as
+        | { job: StudentJob; printers?: Printer[] }
+        | { error?: string }
+      if (
+        !sessionResponse.ok ||
+        !('job' in sessionPayload) ||
+        !sessionPayload.job
+      ) {
         const message =
-          'error' in jobPayload && typeof jobPayload.error === 'string'
-            ? jobPayload.error
-            : `Failed to save job details with ${jobResponse.status}`
+          'error' in sessionPayload && typeof sessionPayload.error === 'string'
+            ? sessionPayload.error
+            : `Failed to start print session with ${sessionResponse.status}`
         throw new Error(message)
       }
 
-      setJobs((currentJobs) => [jobPayload, ...currentJobs.filter((job) => job.id !== jobPayload.id)])
+      setJobs((currentJobs) => [
+        sessionPayload.job,
+        ...currentJobs.filter((job) => job.id !== sessionPayload.job.id),
+      ])
       setJobsError(null)
 
-      const response = await fetch(
-        `http://localhost:3000/printers/${encodeURIComponent(selectedPrinter.id)}/authorize`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            studentId: state.studentId,
-            cardId: state.cardId,
-            firstName: state.firstName,
-            jobId: jobPayload.id,
-            durationMinutes: SESSION_MINUTES,
-          }),
-        },
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to start print session with ${response.status}`)
-      }
-
-      const payload = (await response.json()) as { printers?: Printer[] }
-      if (payload.printers) {
-        setPrinters(payload.printers)
+      if (sessionPayload.printers) {
+        setPrinters(sessionPayload.printers)
       }
     } catch (requestError) {
       setSessionError(
@@ -376,11 +378,45 @@ export function StudentLanding() {
     }
   }
 
+  async function handleEndPrintSession() {
+    if (!currentSessionPrinter || endingPrintSession) {
+      return
+    }
+
+    setEndingPrintSession(true)
+    setSessionError(null)
+
+    try {
+      const response = await fetch(
+        `http://localhost:3000/printers/${encodeURIComponent(currentSessionPrinter.id)}/deauthorize`,
+        {
+          method: 'POST',
+        },
+      )
+
+      const payload = (await response.json()) as { printers?: Printer[]; error?: string }
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Failed to end print session with ${response.status}`)
+      }
+
+      if (payload.printers) {
+        setPrinters(payload.printers)
+      }
+    } catch (requestError) {
+      setSessionError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Failed to end the print session.',
+      )
+    } finally {
+      setEndingPrintSession(false)
+    }
+  }
+
   const sessionCopy = getSessionCopy({
     currentSessionPrinter,
     selectedPrinter,
     availableCount: availablePrinters.length,
-    sessionCountdownMs,
     sessionRequestState,
     detailsReady: isJobFormComplete,
     requestedWeightGrams,
@@ -394,7 +430,7 @@ export function StudentLanding() {
             <span className="student-brand__mark">PLA</span>
             <div>
               <p className="student-panel__eyebrow">Print Ledger Assistant</p>
-              <p className="student-brand__subtle">USF 3D Print Lab</p>
+              <p className="student-brand__subtle">Print Ledger Assistant</p>
             </div>
           </div>
           <div className="student-clock" aria-label={`Current time ${timeLabel}`}>
@@ -550,14 +586,8 @@ export function StudentLanding() {
               ) : null}
             </label>
           </div>
-        </section>
 
-        <section className="student-session-panel">
-          <div className="student-session-panel__copy">
-            <p className="student-panel__eyebrow">{sessionCopy.eyebrow}</p>
-            <h2>{sessionCopy.title}</h2>
-            <p className="student-session-panel__detail">{sessionCopy.detail}</p>
-
+          <div className="student-details-panel__actions">
             <button
               type="button"
               className={`student-start-button tooltip-trigger ${hasLiveSession ? 'student-start-button--active' : ''}`}
@@ -580,6 +610,14 @@ export function StudentLanding() {
                     : 'Save Details and Start Print Session'}
             </button>
           </div>
+        </section>
+
+        <section className="student-session-panel">
+          <div className="student-session-panel__copy">
+            <p className="student-panel__eyebrow">{sessionCopy.eyebrow}</p>
+            <h2>{sessionCopy.title}</h2>
+            <p className="student-session-panel__detail">{sessionCopy.detail}</p>
+          </div>
 
           <div className="student-session-panel__status">
             <div className="student-session-chip">
@@ -587,11 +625,13 @@ export function StudentLanding() {
               <strong>{selectedPrinter?.name ?? 'Choose a printer'}</strong>
             </div>
             <div className="student-session-chip">
-              <span className="label">USB connect time</span>
+              <span className="label">Session status</span>
               <strong>
-                {sessionCountdownMs !== null
-                  ? formatCountdown(sessionCountdownMs)
-                  : `${SESSION_MINUTES}:00`}
+                {currentSessionPrinter?.authorization.sessionState === 'active_print'
+                  ? 'Print active'
+                  : currentSessionPrinter?.authorization.sessionState === 'pending_start'
+                    ? 'USB window open'
+                    : 'Ready to start'}
               </strong>
             </div>
           </div>
@@ -718,6 +758,41 @@ export function StudentLanding() {
             </button>
           ) : null}
         </footer>
+
+        {showUsbSessionModal ? (
+          <div className="modal-backdrop">
+            <section className="modal-card modal-card--session" aria-live="polite">
+              <div className="modal-header">
+                <div>
+                  <p className="student-panel__eyebrow">Time to connect USB drive</p>
+                  <h2>{currentSessionPrinter?.name ?? 'Selected printer'}</h2>
+                </div>
+              </div>
+
+              <p className="student-session-modal__detail">
+                Connect your USB drive to the printer and start the job before this window closes.
+              </p>
+
+              <div className="student-session-modal__timer">
+                <span className="label">Time remaining</span>
+                <strong>{formatCountdown(sessionCountdownMs ?? SESSION_MINUTES * 60 * 1000)}</strong>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="admin-button admin-button--secondary"
+                  disabled={endingPrintSession}
+                  onClick={() => {
+                    void handleEndPrintSession()
+                  }}
+                >
+                  {endingPrintSession ? 'Ending Session...' : 'End Session'}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </section>
     </main>
   )
@@ -727,7 +802,6 @@ function getSessionCopy({
   currentSessionPrinter,
   selectedPrinter,
   availableCount,
-  sessionCountdownMs,
   sessionRequestState,
   detailsReady,
   requestedWeightGrams,
@@ -735,7 +809,6 @@ function getSessionCopy({
   currentSessionPrinter: Printer | null
   selectedPrinter: Printer | null
   availableCount: number
-  sessionCountdownMs: number | null
   sessionRequestState: 'idle' | 'submitting'
   detailsReady: boolean
   requestedWeightGrams: number | null
@@ -748,7 +821,13 @@ function getSessionCopy({
     }
   }
 
-  if (currentSessionPrinter?.authorization.sessionState === 'active_print') {
+  if (
+    currentSessionPrinter?.authorization.sessionState === 'active_print' &&
+    (
+      currentSessionPrinter.activity.state === 'heating' ||
+      currentSessionPrinter.activity.state === 'printing'
+    )
+  ) {
     return {
       eyebrow: 'Print detected',
       title: `${currentSessionPrinter.name} is now active`,
@@ -759,8 +838,8 @@ function getSessionCopy({
   if (currentSessionPrinter?.authorization.sessionState === 'pending_start') {
     return {
       eyebrow: 'Time to connect USB drive',
-      title: `Go to ${currentSessionPrinter.name} and connect your USB drive`,
-      detail: `You have ${formatCountdown(sessionCountdownMs ?? 0)} left to connect your USB drive to the printer and start the job.`,
+      title: `${currentSessionPrinter.name} is reserved for you`,
+      detail: 'Use the popup timer to connect your USB drive and start the job before the session closes.',
     }
   }
 
@@ -902,6 +981,16 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null, re
   }
 
   if (isCurrentSession) {
+    if (printer.activity.state === 'idle') {
+      return {
+        label: 'Available',
+        tone: 'available' as const,
+        selectable: true,
+        isCurrentSession,
+        detail: 'Your last session ended. This printer is ready again.',
+      }
+    }
+
     return {
       label: printer.authorization.sessionState === 'active_print' ? 'Your Print' : 'Reserved For You',
       tone: printer.authorization.sessionState === 'active_print' ? ('busy' as const) : ('available' as const),
@@ -1021,11 +1110,11 @@ function getFilamentAvailabilityLabel(printer: Printer) {
 function createJobFormState(state: LandingState | null): StudentJobFormState {
   return {
     studentIdentifier: state?.cardId ?? state?.studentId ?? 'Unknown student',
-    fileName: '',
-    estimatedTimeHours: '',
-    estimatedTimeMinutes: '',
-    estimatedWeightGrams: '',
-    jobReason: '',
+    fileName: DEFAULT_JOB_FILE_NAME,
+    estimatedTimeHours: DEFAULT_JOB_ESTIMATED_HOURS,
+    estimatedTimeMinutes: DEFAULT_JOB_ESTIMATED_MINUTES,
+    estimatedWeightGrams: DEFAULT_JOB_ESTIMATED_WEIGHT_GRAMS,
+    jobReason: DEFAULT_JOB_REASON,
   }
 }
 

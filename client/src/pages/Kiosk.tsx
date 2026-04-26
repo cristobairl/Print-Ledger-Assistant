@@ -139,10 +139,10 @@ export function Kiosk() {
     <main className="kiosk-screen">
       <section className={`kiosk-panel kiosk-panel--${swipeState}`}>
         <div className="kiosk-panel__header">
-          <p className="kiosk-panel__eyebrow">USF 3D Print Lab</p>
+          <p className="kiosk-panel__eyebrow">Print Ledger Assistant</p>
           <h1>Swipe your student ID</h1>
           <p className="kiosk-panel__lead">
-            Use the magnetic card reader to begin your print session.
+            Use the reader to begin your print session.
           </p>
         </div>
 
@@ -180,19 +180,14 @@ export function Kiosk() {
             <>
               <p className="swipe-card__label">Ready</p>
               <p className="swipe-card__name">Present card to reader</p>
-              <p className="swipe-card__message">Swipe once to continue.</p>
             </>
           )}
         </div>
 
         <div className="kiosk-notes">
           <div className="kiosk-note">
-            <span>1</span>
-            <p>Click anywhere on this screen once so the kiosk keeps focus.</p>
-          </div>
-          <div className="kiosk-note">
-            <span>2</span>
-            <p>Swipe your ID card.</p>
+            <span>i</span>
+            <p>If the reader does not respond, click anywhere on this screen once and swipe again.</p>
           </div>
         </div>
       </section>

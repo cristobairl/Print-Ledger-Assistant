@@ -358,6 +358,12 @@ export class PrinterRadar {
         return
       }
 
+      printer.authorization = {
+        ...printer.authorization,
+        state: 'unauthorized',
+        sessionState: 'idle',
+        expiresAt: null,
+      }
       await this.finalizeTrackedJob(printer, nowIso)
       printer.authorization = this.createUnauthorizedAuthorization()
       this.resetTrackedJobRuntime(printer)
@@ -370,6 +376,12 @@ export class PrinterRadar {
     }
 
     if (Date.parse(expiresAt) <= Date.parse(nowIso)) {
+      printer.authorization = {
+        ...printer.authorization,
+        state: 'unauthorized',
+        sessionState: 'idle',
+        expiresAt: null,
+      }
       await this.expireTrackedJobIfNeeded(printer)
       printer.authorization = this.createUnauthorizedAuthorization()
       this.resetTrackedJobRuntime(printer)
@@ -564,6 +576,24 @@ export class PrinterRadar {
       return
     }
 
+    if (printer.jobRuntime.startedAt === null) {
+      const activityIsLive =
+        printer.activity.state === 'heating' || printer.activity.state === 'printing'
+
+      if (!activityIsLive) {
+        return
+      }
+
+      printer.jobRuntime.startedAt = nowIso
+      await this.reserveTrackedFilament(printer, jobId)
+
+      await this.updateJobRecord(jobId, {
+        status: 'printing',
+        started_at: nowIso,
+      })
+      return
+    }
+
     if (!this.hasStrongProgressSignal(progress)) {
       return
     }
@@ -574,17 +604,6 @@ export class PrinterRadar {
         printer.jobRuntime.progressFraction ?? 0,
         progressFraction,
       )
-    }
-
-    if (printer.jobRuntime.startedAt === null) {
-      printer.jobRuntime.startedAt = nowIso
-      await this.reserveTrackedFilament(printer, jobId)
-
-      await this.updateJobRecord(jobId, {
-        status: 'printing',
-        started_at: nowIso,
-      })
-      return
     }
   }
 
