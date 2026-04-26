@@ -12,7 +12,7 @@ This system provides a lightweight control layer for labs without requiring prop
 ---
 
 ## 🔗 Project Links
-[**Live Demo**](#) • [**GitHub Repo**](https://github.com/cristobairl/Print-Ledger-Assistant) • [**Documentation**](#)
+(#) • [**GitHub Repo**](https://github.com/cristobairl/Print-Ledger-Assistant) • [**Documentation**](https://github.com/Parallel-7/flashforge-api-docs/wiki)(#)
 
 ---
 
