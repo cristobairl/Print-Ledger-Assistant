@@ -1,5 +1,12 @@
 import * as net from 'net'
 import { supabase } from './db'
+import {
+  buildPrinterFilamentSnapshot,
+  FILAMENT_NO_DEDUCTION_PROGRESS_THRESHOLD,
+  fetchActiveSpoolsByPrinter,
+  reserveFilamentForJob,
+  settleFilamentReservation,
+} from './filament'
 import type { PrinterStatusSnapshot, TemperatureTelemetry } from './printer-status'
 
 type M27Progress = {
@@ -16,6 +23,10 @@ type PrinterRuntime = PrinterStatusSnapshot & {
   }
   jobRuntime: {
     startedAt: string | null
+    progressFraction: number | null
+    filamentSpoolId: string | null
+    reservedWeightGrams: number
+    estimatedWeightGrams: number | null
   }
 }
 type PrinterConfigRow = {
@@ -43,13 +54,16 @@ export class PrinterRadar {
   private readonly POLL_INTERVAL = 1000
   private readonly PRINTER_PORTS = [8899, 8000]
   private readonly PRINTER_CONFIG_REFRESH_MS = 10000
+  private readonly FILAMENT_REFRESH_MS = 5000
   private readonly DEFAULT_SESSION_MINUTES = 2
   private readonly ABORT_COMMAND = '~M26'
   private readonly ABORT_RETRY_COOLDOWN_MS = 10000
   private lastPrinterConfigRefreshAt = 0
+  private lastFilamentRefreshAt = 0
 
   async start() {
     await this.refreshPrinterConfigs(true)
+    await this.refreshFilamentStates(true)
     console.log(
       `PrinterRadar diagnostics enabled for ${this.describeConfiguredPrinters()} using ~M27 and ~M105 on ports ${this.PRINTER_PORTS.join(', ')}`,
     )
@@ -67,6 +81,7 @@ export class PrinterRadar {
 
   private async poll() {
     await this.refreshPrinterConfigs()
+    await this.refreshFilamentStates()
 
     console.log(
       `[Radar] Handshake poll started at ${new Date().toISOString()} for ${this.printers.length} printer(s)`,
@@ -211,12 +226,29 @@ export class PrinterRadar {
         lastAction: 'none',
         reason: 'Auto-snipe is armed. Unauthorized bed heating or print activity will receive ~M26 once per incident.',
       },
+      filament: {
+        state: 'unknown',
+        reason: 'Filament tracking has not loaded yet.',
+        activeSpoolId: null,
+        brand: null,
+        material: null,
+        colorName: null,
+        totalWeightGrams: null,
+        remainingWeightGrams: null,
+        reservedWeightGrams: null,
+        usableWeightGrams: null,
+        safetyBufferGrams: 0,
+      },
       enforcementRuntime: {
         incidentActive: false,
         lastAbortAttemptAt: null,
       },
       jobRuntime: {
         startedAt: null,
+        progressFraction: null,
+        filamentSpoolId: null,
+        reservedWeightGrams: 0,
+        estimatedWeightGrams: null,
       },
     }
   }
@@ -344,6 +376,34 @@ export class PrinterRadar {
     }
   }
 
+  private async refreshFilamentStates(force = false) {
+    const now = Date.now()
+    if (!force && now - this.lastFilamentRefreshAt < this.FILAMENT_REFRESH_MS) {
+      return
+    }
+
+    this.lastFilamentRefreshAt = now
+
+    try {
+      const activeSpoolsByPrinter = await fetchActiveSpoolsByPrinter()
+
+      this.printers = this.printers.map((printer) => ({
+        ...printer,
+        filament: buildPrinterFilamentSnapshot(activeSpoolsByPrinter.get(printer.id) ?? null),
+      }))
+    } catch (error) {
+      console.error('[Radar] Failed to refresh filament tracking data. Keeping the current spool state.', error)
+      this.printers = this.printers.map((printer) => ({
+        ...printer,
+        filament: {
+          ...printer.filament,
+          state: 'unknown',
+          reason: 'Filament tracking is unavailable right now.',
+        },
+      }))
+    }
+  }
+
   private clonePrinter(printer: PrinterRuntime): PrinterStatusSnapshot {
     return {
       id: printer.id,
@@ -358,6 +418,7 @@ export class PrinterRadar {
         bed: { ...printer.telemetry.bed },
       },
       enforcement: { ...printer.enforcement },
+      filament: { ...printer.filament },
     }
   }
 
@@ -507,8 +568,17 @@ export class PrinterRadar {
       return
     }
 
+    const progressFraction = this.getProgressFraction(progress)
+    if (progressFraction !== null) {
+      printer.jobRuntime.progressFraction = Math.max(
+        printer.jobRuntime.progressFraction ?? 0,
+        progressFraction,
+      )
+    }
+
     if (printer.jobRuntime.startedAt === null) {
       printer.jobRuntime.startedAt = nowIso
+      await this.reserveTrackedFilament(printer, jobId)
 
       await this.updateJobRecord(jobId, {
         status: 'printing',
@@ -531,8 +601,10 @@ export class PrinterRadar {
       return
     }
 
+    await this.settleTrackedFilament(printer, jobId)
+
     await this.updateJobRecord(jobId, {
-      status: 'completed',
+      status: this.getCompletedJobStatus(printer),
       ended_at: nowIso,
     })
   }
@@ -555,13 +627,17 @@ export class PrinterRadar {
   private resetTrackedJobRuntime(printer: PrinterRuntime) {
     printer.jobRuntime = {
       startedAt: null,
+      progressFraction: null,
+      filamentSpoolId: null,
+      reservedWeightGrams: 0,
+      estimatedWeightGrams: null,
     }
   }
 
   private async updateJobRecord(
     jobId: string,
     fields: {
-      status?: 'queued' | 'printing' | 'completed' | 'expired' | 'sniped' | null
+      status?: 'queued' | 'printing' | 'completed' | 'expired' | 'sniped' | 'interrupted' | null
       started_at?: string | null
       ended_at?: string | null
     },
@@ -582,6 +658,111 @@ export class PrinterRadar {
     if (error) {
       console.error(`[Radar] Failed to update job ${jobId}.`, error)
     }
+  }
+
+  private async reserveTrackedFilament(printer: PrinterRuntime, jobId: string) {
+    if (
+      !isUuidString(printer.id) ||
+      !printer.filament.activeSpoolId ||
+      !isUuidString(printer.filament.activeSpoolId)
+    ) {
+      return
+    }
+
+    const estimatedWeightGrams = await this.loadJobEstimatedWeight(jobId)
+    if (estimatedWeightGrams === null) {
+      return
+    }
+
+    try {
+      const reservation = await reserveFilamentForJob({
+        spoolId: printer.filament.activeSpoolId,
+        printerId: printer.id,
+        jobId,
+        studentId: printer.authorization.studentId,
+        grams: estimatedWeightGrams,
+      })
+
+      if (!reservation.ok) {
+        console.warn(`[Radar] Skipping filament reservation for ${printer.name}: ${reservation.reason}`)
+        return
+      }
+
+      printer.jobRuntime.filamentSpoolId = reservation.spool.id
+      printer.jobRuntime.reservedWeightGrams = reservation.reservedGrams
+      printer.jobRuntime.estimatedWeightGrams = estimatedWeightGrams
+      await this.refreshFilamentStates(true)
+    } catch (error) {
+      console.error(`[Radar] Failed to reserve filament for ${printer.name}.`, error)
+    }
+  }
+
+  private async settleTrackedFilament(printer: PrinterRuntime, jobId: string) {
+    if (
+      !isUuidString(printer.id) ||
+      !printer.jobRuntime.filamentSpoolId ||
+      !isUuidString(printer.jobRuntime.filamentSpoolId) ||
+      printer.jobRuntime.reservedWeightGrams <= 0
+    ) {
+      return
+    }
+
+    const progressFraction = printer.jobRuntime.progressFraction ?? 0
+    const consumedRatio =
+      progressFraction < FILAMENT_NO_DEDUCTION_PROGRESS_THRESHOLD
+        ? 0
+        : Math.min(progressFraction, 1)
+    const consumedGrams = printer.jobRuntime.estimatedWeightGrams === null
+      ? 0
+      : Math.round(printer.jobRuntime.estimatedWeightGrams * consumedRatio * 100) / 100
+
+    try {
+      await settleFilamentReservation({
+        spoolId: printer.jobRuntime.filamentSpoolId,
+        printerId: printer.id,
+        jobId,
+        studentId: printer.authorization.studentId,
+        reservedGrams: printer.jobRuntime.reservedWeightGrams,
+        consumedGrams,
+      })
+      await this.refreshFilamentStates(true)
+    } catch (error) {
+      console.error(`[Radar] Failed to settle filament for ${printer.name}.`, error)
+    }
+  }
+
+  private getCompletedJobStatus(printer: PrinterRuntime) {
+    const progressFraction = printer.jobRuntime.progressFraction ?? 0
+    return progressFraction >= 0.98 ? 'completed' : 'interrupted'
+  }
+
+  private async loadJobEstimatedWeight(jobId: string) {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('estimated_weight_grams')
+      .eq('id', jobId)
+      .maybeSingle()
+
+    if (error) {
+      console.error(`[Radar] Failed to load estimated weight for job ${jobId}.`, error)
+      return null
+    }
+
+    if (!data) {
+      return null
+    }
+
+    const value = data.estimated_weight_grams
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return value
+    }
+
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const parsed = Number.parseFloat(value)
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    }
+
+    return null
   }
 
   private async recordSnipeEvent(printer: PrinterRuntime) {
@@ -888,6 +1069,28 @@ export class PrinterRadar {
       progress.layerCurrent > 0
 
     return byteProgress || layerProgress
+  }
+
+  private getProgressFraction(progress: M27Progress) {
+    if (
+      progress.bytesCurrent !== null &&
+      progress.bytesTotal !== null &&
+      progress.bytesTotal > 0 &&
+      progress.bytesCurrent >= 0
+    ) {
+      return Math.max(0, Math.min(1, progress.bytesCurrent / progress.bytesTotal))
+    }
+
+    if (
+      progress.layerCurrent !== null &&
+      progress.layerTotal !== null &&
+      progress.layerTotal > 0 &&
+      progress.layerCurrent >= 0
+    ) {
+      return Math.max(0, Math.min(1, progress.layerCurrent / progress.layerTotal))
+    }
+
+    return null
   }
 
   private deriveTemperatureActivity(

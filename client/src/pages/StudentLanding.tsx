@@ -37,6 +37,7 @@ export function StudentLanding() {
   const [jobFormSubmitted, setJobFormSubmitted] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
   const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({ maxPrintHours: 5 })
+  const requestedWeightGrams = toNumber(jobForm.estimatedWeightGrams)
 
   if (!state?.firstName) {
     return <Navigate to="/kiosk" replace />
@@ -96,7 +97,7 @@ export function StudentLanding() {
             return currentSessionPrinter.id
           }
 
-          const nextAvailable = data.find((printer) => mapPrinterAvailability(printer, state).selectable)
+          const nextAvailable = data.find((printer) => mapPrinterAvailability(printer, state, requestedWeightGrams).selectable)
           return nextAvailable?.id ?? ''
         })
       } catch (fetchError) {
@@ -119,7 +120,7 @@ export function StudentLanding() {
       active = false
       window.clearInterval(interval)
     }
-  }, [state])
+  }, [requestedWeightGrams, state])
 
   useEffect(() => {
     let active = true
@@ -216,12 +217,13 @@ export function StudentLanding() {
 
   const selectedPrinter =
     displayPrinters.find((printer) => printer.id === selectedPrinterId) ?? currentSessionPrinter ?? null
+  const estimatedMinuteMax = getEstimatedMinuteMax(jobForm, printPolicy.maxPrintHours)
   const jobFormErrors = getJobFormErrors(jobForm, printPolicy.maxPrintHours)
   const isJobFormComplete = Object.values(jobFormErrors).every((error) => error === null)
   const timeLabel = formatClock(new Date(nowMs))
   const inactivityRemainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - (nowMs - lastInteractionMs))
   const availablePrinters = displayPrinters.filter(
-    (printer) => mapPrinterAvailability(printer, state).selectable,
+    (printer) => mapPrinterAvailability(printer, state, requestedWeightGrams).selectable,
   )
   const sessionCountdownMs =
     currentSessionPrinter?.authorization.sessionState === 'pending_start' &&
@@ -233,7 +235,7 @@ export function StudentLanding() {
     currentSessionPrinter.authorization.sessionState !== 'idle'
   const canStartSession =
     Boolean(selectedPrinter) &&
-    Boolean(mapPrinterAvailability(selectedPrinter, state).selectable) &&
+    Boolean(mapPrinterAvailability(selectedPrinter, state, requestedWeightGrams).selectable) &&
     isJobFormComplete &&
     !hasLiveSession &&
     sessionRequestState !== 'submitting'
@@ -245,6 +247,15 @@ export function StudentLanding() {
 
     void handleCloseSession('auto')
   }, [closingSession, inactivityRemainingMs])
+
+  useEffect(() => {
+    const normalizedMinutes = clampEstimatedMinuteValue(jobForm.estimatedTimeMinutes, estimatedMinuteMax)
+    if (normalizedMinutes === jobForm.estimatedTimeMinutes) {
+      return
+    }
+
+    setJobForm((current) => ({ ...current, estimatedTimeMinutes: normalizedMinutes }))
+  }, [estimatedMinuteMax, jobForm.estimatedTimeMinutes])
 
   function updateJobForm<Key extends keyof StudentJobFormState>(
     key: Key,
@@ -372,6 +383,7 @@ export function StudentLanding() {
     sessionCountdownMs,
     sessionRequestState,
     detailsReady: isJobFormComplete,
+    requestedWeightGrams,
   })
 
   return (
@@ -405,7 +417,8 @@ export function StudentLanding() {
             </div>
             <button
               type="button"
-              className="session-guard__button"
+              className="session-guard__button tooltip-trigger"
+              data-tooltip="End this session and return to swipe."
               disabled={closingSession}
               onClick={() => {
                 void handleCloseSession('manual')
@@ -490,7 +503,7 @@ export function StudentLanding() {
                   value={jobForm.estimatedTimeMinutes}
                   disabled={hasLiveSession || sessionRequestState === 'submitting'}
                   placeholder="0"
-                  options={{ step: 15, min: 0, max: 59, decimals: 0 }}
+                  options={{ step: 15, min: 0, max: estimatedMinuteMax, decimals: 0 }}
                   error={null}
                   onChange={(value) => {
                     updateJobForm('estimatedTimeMinutes', value)
@@ -512,7 +525,8 @@ export function StudentLanding() {
               disabled={hasLiveSession || sessionRequestState === 'submitting'}
               placeholder="42"
               options={{ step: 1, min: 1, decimals: 0 }}
-              hint="Wheel or buttons work here too."
+              hint="Use the buttons or type a value."
+              fieldClassName="student-field--align-with-time"
               error={jobFormSubmitted ? jobFormErrors.estimatedWeightGrams : null}
               onChange={(value) => {
                 updateJobForm('estimatedWeightGrams', value)
@@ -546,7 +560,12 @@ export function StudentLanding() {
 
             <button
               type="button"
-              className={`student-start-button ${hasLiveSession ? 'student-start-button--active' : ''}`}
+              className={`student-start-button tooltip-trigger ${hasLiveSession ? 'student-start-button--active' : ''}`}
+              data-tooltip={
+                hasLiveSession
+                  ? 'This printer session is already active.'
+                  : 'Save your job details and reserve the selected printer.'
+              }
               disabled={!canStartSession}
               onClick={() => {
                 void handleStartSession()
@@ -568,7 +587,7 @@ export function StudentLanding() {
               <strong>{selectedPrinter?.name ?? 'Choose a printer'}</strong>
             </div>
             <div className="student-session-chip">
-              <span className="label">Time window</span>
+              <span className="label">USB connect time</span>
               <strong>
                 {sessionCountdownMs !== null
                   ? formatCountdown(sessionCountdownMs)
@@ -594,7 +613,7 @@ export function StudentLanding() {
 
           <div className="student-printer-strip" aria-label="Printer availability">
             {displayPrinters.map((printer) => {
-              const availability = mapPrinterAvailability(printer, state)
+              const availability = mapPrinterAvailability(printer, state, requestedWeightGrams)
               const isSelected = selectedPrinter?.id === printer.id
 
               return (
@@ -617,15 +636,7 @@ export function StudentLanding() {
                     <span className="student-printer-tile__status">{availability.label}</span>
                   </div>
                   <p className="student-printer-tile__name">{printer.name}</p>
-                  <p className="student-printer-tile__meta">
-                    {availability.isCurrentSession
-                      ? 'This printer is reserved for your current session.'
-                      : availability.selectable
-                        ? 'Tap to select this printer.'
-                        : printer.connectivity.state !== 'online'
-                          ? 'Printer is offline right now.'
-                          : 'Printer is not available for a new session.'}
-                  </p>
+                  <p className="student-printer-tile__meta">{availability.detail}</p>
                 </button>
               )
             })}
@@ -637,18 +648,13 @@ export function StudentLanding() {
             <div>
               <p className="section-heading__eyebrow">Student log</p>
               <h2>Your recent jobs</h2>
-              <p className="printer-page__lead">
-                The system updates print status, estimated finish time, started time, and ended time from the printer automatically once progress is available.
-              </p>
             </div>
           </div>
 
           {jobsLoading ? <p className="student-empty">Loading your job history...</p> : null}
           {!jobsLoading && jobsError ? <p className="student-empty student-empty--error">{jobsError}</p> : null}
           {!jobsLoading && !jobsError && jobs.length === 0 ? (
-            <p className="student-empty">
-              No jobs are in the log yet for this student. Once jobs are recorded in Supabase, they will appear here automatically.
-            </p>
+            <p className="student-empty">No jobs yet.</p>
           ) : null}
 
           {!jobsLoading && !jobsError && jobs.length > 0 ? (
@@ -703,7 +709,8 @@ export function StudentLanding() {
           {state.isAdmin ? (
             <button
               type="button"
-              className="student-footer__admin"
+              className="student-footer__admin tooltip-trigger"
+              data-tooltip="Open the admin control panel."
               onClick={() => navigate('/admin', { state })}
             >
               Admin Dashboard
@@ -722,6 +729,7 @@ function getSessionCopy({
   sessionCountdownMs,
   sessionRequestState,
   detailsReady,
+  requestedWeightGrams,
 }: {
   currentSessionPrinter: Printer | null
   selectedPrinter: Printer | null
@@ -729,12 +737,13 @@ function getSessionCopy({
   sessionCountdownMs: number | null
   sessionRequestState: 'idle' | 'submitting'
   detailsReady: boolean
+  requestedWeightGrams: number | null
 }) {
   if (sessionRequestState === 'submitting' && selectedPrinter) {
     return {
       eyebrow: 'Starting session',
       title: `Saving job details for ${selectedPrinter.name}`,
-      detail: `Stay on this screen while the job record is saved and the kiosk opens your ${SESSION_MINUTES}-minute print window.`,
+      detail: `Stay on this screen while the job record is saved and the kiosk opens ${SESSION_MINUTES} minutes to connect your USB drive to the printer.`,
     }
   }
 
@@ -748,9 +757,9 @@ function getSessionCopy({
 
   if (currentSessionPrinter?.authorization.sessionState === 'pending_start') {
     return {
-      eyebrow: 'Print window open',
-      title: `Go to ${currentSessionPrinter.name} and begin your print`,
-      detail: `You have ${formatCountdown(sessionCountdownMs ?? 0)} left to start the job before the session expires.`,
+      eyebrow: 'Time to connect USB drive',
+      title: `Go to ${currentSessionPrinter.name} and connect your USB drive`,
+      detail: `You have ${formatCountdown(sessionCountdownMs ?? 0)} left to connect your USB drive to the printer and start the job.`,
     }
   }
 
@@ -762,11 +771,11 @@ function getSessionCopy({
     }
   }
 
-  if (selectedPrinter && mapPrinterAvailability(selectedPrinter, null).selectable) {
+  if (selectedPrinter && mapPrinterAvailability(selectedPrinter, null, requestedWeightGrams).selectable) {
     return {
       eyebrow: 'Ready to print',
       title: `${selectedPrinter.name} is available`,
-      detail: `Save your details, then head to the printer. The kiosk will hold the authorization for ${SESSION_MINUTES} minutes.`,
+      detail: `Save your details, then head to the printer. You will have ${SESSION_MINUTES} minutes to connect your USB drive to the printer.`,
     }
   }
 
@@ -839,6 +848,19 @@ function getFallbackPrinters(): Printer[] {
       lastAction: 'none',
       reason: 'Auto-snipe status unavailable.',
     },
+    filament: {
+      state: 'unknown',
+      reason: 'Filament data is unavailable.',
+      activeSpoolId: null,
+      brand: null,
+      material: null,
+      colorName: null,
+      totalWeightGrams: null,
+      remainingWeightGrams: null,
+      reservedWeightGrams: null,
+      usableWeightGrams: null,
+      safetyBufferGrams: 5,
+    },
   }))
 }
 
@@ -865,7 +887,7 @@ function belongsToCurrentStudent(printer: Printer, state: LandingState | null) {
   return false
 }
 
-function mapPrinterAvailability(printer: Printer, state: LandingState | null) {
+function mapPrinterAvailability(printer: Printer, state: LandingState | null, requestedWeightGrams: number | null) {
   const isCurrentSession = belongsToCurrentStudent(printer, state)
 
   if (printer.connectivity.state !== 'online') {
@@ -874,6 +896,7 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null) {
       tone: 'offline' as const,
       selectable: false,
       isCurrentSession,
+      detail: 'Printer is offline right now.',
     }
   }
 
@@ -883,6 +906,10 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null) {
       tone: printer.authorization.sessionState === 'active_print' ? ('busy' as const) : ('available' as const),
       selectable: true,
       isCurrentSession,
+      detail:
+        printer.authorization.sessionState === 'active_print'
+          ? 'This printer is running your current job.'
+          : 'This printer is reserved for your current session.',
     }
   }
 
@@ -892,6 +919,54 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null) {
       tone: 'busy' as const,
       selectable: false,
       isCurrentSession,
+      detail: 'Printer is reserved for another session.',
+    }
+  }
+
+  if (printer.filament.state === 'unassigned') {
+    return {
+      label: 'Needs Filament',
+      tone: 'busy' as const,
+      selectable: false,
+      isCurrentSession,
+      detail: 'No active spool is loaded. Ask an admin to mount filament.',
+    }
+  }
+
+  if (printer.filament.state === 'out') {
+    return {
+      label: 'Out Of Filament',
+      tone: 'busy' as const,
+      selectable: false,
+      isCurrentSession,
+      detail: 'The active spool does not have enough usable filament left.',
+    }
+  }
+
+  if (
+    requestedWeightGrams !== null &&
+    printer.filament.usableWeightGrams !== null &&
+    printer.filament.usableWeightGrams < requestedWeightGrams
+  ) {
+    return {
+      label: 'Not Enough Filament',
+      tone: 'busy' as const,
+      selectable: false,
+      isCurrentSession,
+      detail: `This spool has ${formatWeight(printer.filament.usableWeightGrams)} usable, which is below this job's estimate.`,
+    }
+  }
+
+  if (printer.filament.state === 'low') {
+    return {
+      label: 'Low Filament',
+      tone: 'busy' as const,
+      selectable: requestedWeightGrams === null,
+      isCurrentSession,
+      detail:
+        requestedWeightGrams === null
+          ? 'Filament is running low. Enter the job weight to confirm this printer can cover it.'
+          : 'Filament is running low for new jobs.',
     }
   }
 
@@ -901,6 +976,10 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null) {
       tone: 'available' as const,
       selectable: true,
       isCurrentSession,
+      detail:
+        printer.filament.state === 'unknown'
+          ? 'Filament data is unavailable right now.'
+          : 'Tap to select this printer.',
     }
   }
 
@@ -909,6 +988,7 @@ function mapPrinterAvailability(printer: Printer, state: LandingState | null) {
     tone: 'busy' as const,
     selectable: false,
     isCurrentSession,
+    detail: 'Printer is not available for a new session.',
   }
 }
 
@@ -925,6 +1005,7 @@ function createJobFormState(state: LandingState | null): StudentJobFormState {
 
 function getJobFormErrors(form: StudentJobFormState, maxPrintHours: number) {
   const totalEstimatedMinutes = getEstimatedTimeTotalMinutes(form)
+  const minuteMax = getEstimatedMinuteMax(form, maxPrintHours)
 
   return {
     fileName: form.fileName.trim().length > 0 ? null : 'Enter the file name.',
@@ -933,9 +1014,11 @@ function getJobFormErrors(form: StudentJobFormState, maxPrintHours: number) {
         ? 'Enter the print time shown on the printer.'
         : totalEstimatedMinutes > maxPrintHours * 60
           ? `Print time cannot exceed ${maxPrintHours} hour${maxPrintHours === 1 ? '' : 's'}.`
-          : isValidMinutePart(form.estimatedTimeMinutes)
+          : isValidMinutePart(form.estimatedTimeMinutes, minuteMax)
             ? null
-            : 'Enter a valid minute value between 0 and 59.',
+            : minuteMax === 0
+              ? 'When the hours are at the limit, minutes must stay at 0.'
+              : `Enter a valid minute value between 0 and ${minuteMax}.`,
     estimatedWeightGrams: isPositiveNumericString(form.estimatedWeightGrams)
       ? null
       : 'Enter the estimated weight in grams.',
@@ -953,6 +1036,7 @@ function NumericField({
   hint,
   options,
   hideLabel = false,
+  fieldClassName,
 }: {
   label: string
   value: string
@@ -963,6 +1047,7 @@ function NumericField({
   hint?: string
   options: NumericFieldOptions
   hideLabel?: boolean
+  fieldClassName?: string
 }) {
   const handleAdjust = (direction: 1 | -1) => {
     if (disabled) {
@@ -973,19 +1058,9 @@ function NumericField({
   }
 
   return (
-    <label className="student-field">
+    <label className={`student-field${fieldClassName ? ` ${fieldClassName}` : ''}`}>
       {!hideLabel ? <span className="student-field__label">{label}</span> : null}
-      <div
-        className={`student-stepper ${disabled ? 'student-stepper--disabled' : ''}`}
-        onWheel={(event) => {
-          if (disabled) {
-            return
-          }
-
-          event.preventDefault()
-          handleAdjust(event.deltaY < 0 ? 1 : -1)
-        }}
-      >
+      <div className={`student-stepper ${disabled ? 'student-stepper--disabled' : ''}`}>
         <button
           type="button"
           className="student-stepper__button"
@@ -1102,6 +1177,10 @@ function formatJobStatus(value: string | null) {
     return 'Expired'
   }
 
+  if (value === 'interrupted') {
+    return 'Interrupted'
+  }
+
   if (value === 'sniped') {
     return 'Sniped'
   }
@@ -1202,21 +1281,21 @@ function formatRemainingClock(remainingMs: number) {
 }
 
 function getEstimatedTimeTotalMinutes(form: Pick<StudentJobFormState, 'estimatedTimeHours' | 'estimatedTimeMinutes'>) {
-  const hours = Number.parseInt(form.estimatedTimeHours.trim() || '0', 10)
-  const minutes = Number.parseInt(form.estimatedTimeMinutes.trim() || '0', 10)
+  const hours = parseNonNegativeInteger(form.estimatedTimeHours)
+  const minutes = parseNonNegativeInteger(form.estimatedTimeMinutes)
   const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 0
   const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, 59) : 0
 
   return safeHours * 60 + safeMinutes
 }
 
-function isValidMinutePart(value: string) {
+function isValidMinutePart(value: string, maxMinutes = 59) {
   if (value.trim().length === 0) {
     return true
   }
 
   const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 59
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= maxMinutes
 }
 
 function formatWeight(value: number | string | null) {
@@ -1278,4 +1357,30 @@ function clampNumeric(value: number, options: NumericFieldOptions) {
   }
 
   return boundedLow
+}
+
+function getEstimatedMinuteMax(
+  form: Pick<StudentJobFormState, 'estimatedTimeHours'>,
+  maxPrintHours: number,
+) {
+  const hours = parseNonNegativeInteger(form.estimatedTimeHours)
+  return hours >= maxPrintHours ? 0 : 59
+}
+
+function clampEstimatedMinuteValue(value: string, maxMinutes: number) {
+  if (value.trim().length === 0) {
+    return value
+  }
+
+  return clampNumericValue(value, {
+    step: 1,
+    min: 0,
+    max: maxMinutes,
+    decimals: 0,
+  })
+}
+
+function parseNonNegativeInteger(value: string) {
+  const parsed = Number.parseInt(value.trim() || '0', 10)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 }

@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 
 import authRoutes from './routes/auth'
 import eventRoutes from './routes/events'
+import filamentRoutes from './routes/filament'
 import jobRoutes from './routes/jobs'
 import printerRoutes from './routes/printers'
 import settingsRoutes from './routes/settings'
@@ -20,6 +21,7 @@ app.use(express.json())
 
 app.use('/auth', authRoutes)
 app.use('/events', eventRoutes)
+app.use('/filament', filamentRoutes)
 app.use('/jobs', jobRoutes)
 app.use('/printers', printerRoutes)
 app.use('/settings', settingsRoutes)

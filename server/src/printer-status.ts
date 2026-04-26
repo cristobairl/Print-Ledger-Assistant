@@ -5,6 +5,7 @@ export type ActivityState = 'idle' | 'heating' | 'printing' | 'unknown'
 export type EnforcementMode = 'auto-snipe'
 export type EnforcementState = 'idle' | 'monitoring' | 'aborting' | 'aborted' | 'error'
 export type ActivitySource = 'm27-status' | 'temperature-heuristic'
+export type FilamentState = 'ready' | 'low' | 'out' | 'unassigned' | 'unknown'
 
 export type TemperatureTelemetry = {
   current: number | null
@@ -50,5 +51,18 @@ export type PrinterStatusSnapshot = {
     state: EnforcementState
     lastAction: 'none' | 'abort_sent' | 'abort_failed'
     reason: string
+  }
+  filament: {
+    state: FilamentState
+    reason: string
+    activeSpoolId: string | null
+    brand: string | null
+    material: string | null
+    colorName: string | null
+    totalWeightGrams: number | null
+    remainingWeightGrams: number | null
+    reservedWeightGrams: number | null
+    usableWeightGrams: number | null
+    safetyBufferGrams: number
   }
 }

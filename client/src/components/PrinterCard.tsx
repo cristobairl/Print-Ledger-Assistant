@@ -51,7 +51,12 @@ export function PrinterCard({ printer, onAuthorizationChange }: PrinterCardProps
             </div>
             <button
               type="button"
-              className="printer-card__button"
+              className="printer-card__button tooltip-trigger"
+              data-tooltip={
+                printer.authorization.state === 'authorized'
+                  ? 'Remove printer permission and re-arm auto-snipe.'
+                  : 'Allow supervised printing on this printer.'
+              }
               onClick={() =>
                 onAuthorizationChange(
                   printer.id,

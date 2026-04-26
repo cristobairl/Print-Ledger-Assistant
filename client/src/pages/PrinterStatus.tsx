@@ -85,7 +85,8 @@ export function PrinterStatus() {
           {adminState?.firstName && adminState.isAdmin ? (
             <button
               type="button"
-              className="admin-button admin-button--secondary"
+              className="admin-button admin-button--secondary tooltip-trigger"
+              data-tooltip="Return to the admin landing page."
               onClick={() => navigate('/admin', { state: adminState })}
             >
               Back to Admin Dashboard

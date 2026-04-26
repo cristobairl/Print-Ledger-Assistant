@@ -280,7 +280,8 @@ export function AdminLanding() {
             </div>
             <button
               type="button"
-              className="session-guard__button"
+              className="session-guard__button tooltip-trigger"
+              data-tooltip="End this admin session and return to swipe."
               disabled={closingSession}
               onClick={() => {
                 void handleCloseSession()
@@ -303,14 +304,24 @@ export function AdminLanding() {
           <div className="admin-actions">
             <button
               type="button"
-              className="admin-button admin-button--primary"
+              className="admin-button admin-button--primary tooltip-trigger"
+              data-tooltip="View live printer replies and watchdog status."
               onClick={() => navigate('/printers', { state })}
             >
               Open Printer Diagnostics
             </button>
             <button
               type="button"
-              className="admin-button admin-button--secondary"
+              className="admin-button admin-button--secondary tooltip-trigger"
+              data-tooltip="Open filament inventory and active spool assignments."
+              onClick={() => navigate('/filament', { state })}
+            >
+              Open Filament Tracker
+            </button>
+            <button
+              type="button"
+              className="admin-button admin-button--secondary tooltip-trigger"
+              data-tooltip="Return to the swipe screen."
               onClick={() => navigate('/kiosk', { replace: true })}
             >
               Return to Swipe Screen
@@ -486,7 +497,8 @@ export function AdminLanding() {
 
                   <button
                     type="button"
-                    className="admin-button admin-button--primary"
+                    className="admin-button admin-button--primary tooltip-trigger"
+                    data-tooltip="Apply this maximum print time."
                     disabled={policySaveState === 'saving'}
                     onClick={() => {
                       void handleSavePrintPolicy()
@@ -500,7 +512,8 @@ export function AdminLanding() {
 
             <button
               type="button"
-              className="admin-button admin-button--secondary admin-button--full"
+              className="admin-button admin-button--secondary admin-button--full tooltip-trigger"
+              data-tooltip="Preview the student landing page."
               onClick={() => navigate('/student', { state })}
             >
               Open Student Landing

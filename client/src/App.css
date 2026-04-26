@@ -52,6 +52,39 @@
   max-width: 56ch;
 }
 
+.tooltip-trigger {
+  position: relative;
+}
+
+.tooltip-trigger::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  min-width: 160px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(23, 35, 31, 0.96);
+  color: #f4f7f2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 14px 28px rgba(23, 35, 31, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 10;
+}
+
+.tooltip-trigger:hover::after,
+.tooltip-trigger:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .reader-display {
   display: flex;
   align-items: center;
@@ -357,6 +390,10 @@
 
 .student-time-grid .student-field__label {
   font-size: 0.84rem;
+}
+
+.student-field--align-with-time .student-stepper {
+  margin-top: 31px;
 }
 
 .student-field--full {
@@ -853,6 +890,10 @@
   gap: 14px;
 }
 
+.admin-metrics--filament {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .admin-metric {
   padding: 22px;
 }
@@ -875,6 +916,10 @@
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
   gap: 18px;
+}
+
+.admin-panels--filament {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
 }
 
 .admin-panel {
@@ -1117,6 +1162,27 @@
   font-size: 0.9rem;
 }
 
+.filament-select {
+  appearance: none;
+}
+
+.filament-table {
+  min-width: 1180px;
+}
+
+.filament-table__input {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+.filament-table__printer {
+  margin: 8px 0 0;
+}
+
+.filament-table__button {
+  width: 100%;
+}
+
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 currentColor;
@@ -1171,6 +1237,10 @@
 
   .student-time-grid {
     grid-template-columns: 1fr;
+  }
+
+  .student-field--align-with-time .student-stepper {
+    margin-top: 0;
   }
 
   .student-printer-strip {

@@ -56,6 +56,19 @@ export type Printer = {
     lastAction: 'none' | 'abort_sent' | 'abort_failed'
     reason: string
   }
+  filament: {
+    state: 'ready' | 'low' | 'out' | 'unassigned' | 'unknown'
+    reason: string
+    activeSpoolId: string | null
+    brand: string | null
+    material: string | null
+    colorName: string | null
+    totalWeightGrams: number | null
+    remainingWeightGrams: number | null
+    reservedWeightGrams: number | null
+    usableWeightGrams: number | null
+    safetyBufferGrams: number
+  }
 }
 
 export type StudentJob = {
@@ -73,7 +86,7 @@ export type StudentJob = {
   status: string | null
 }
 
-export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped' | 'expired'
+export type JobStatus = 'queued' | 'printing' | 'completed' | 'sniped' | 'expired' | 'interrupted'
 
 export type Job = {
   id: string
@@ -99,4 +112,31 @@ export type EventItem = {
   printerName: string
   studentId: string | null
   studentLabel: string | null
+}
+
+export type FilamentSpool = {
+  id: string
+  brand: string
+  material: string
+  totalWeightGrams: number
+  remainingWeightGrams: number
+  reservedWeightGrams: number
+  usableWeightGrams: number
+  activePrinterId: string | null
+  colorName: string | null
+  notes: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type FilamentEvent = {
+  id: string
+  spoolId: string
+  eventType: 'reserve' | 'release' | 'consume' | 'adjust' | 'assign' | 'unassign'
+  grams: number
+  printerId: string | null
+  jobId: string | null
+  studentId: string | null
+  note: string | null
+  createdAt: string | null
 }
