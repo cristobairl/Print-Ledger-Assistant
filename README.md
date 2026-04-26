@@ -92,58 +92,85 @@ Print-Ledger-Assistant/
 │
 ├── rules.md
 └── README.md
-📦 Installation
+```
+
+## 📦 Installation
 
 Clone the repository:
-
-git clone https://github.com/yourusername/print-ledger-assistant.git
+```bash
+git clone [https://github.com/yourusername/print-ledger-assistant.git](https://github.com/yourusername/print-ledger-assistant.git)
 cd print-ledger-assistant
-⚙️ Configuration
+```
 
-Create a .env file inside /server:
+---
 
+## ⚙️ Configuration
+
+Create a `.env` file inside `/server`:
+```env
 PORT=3000
-SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
 SUPABASE_ANON_KEY=your-anon-key
-▶️ Usage
-Start Backend
+```
+
+---
+
+## ▶️ Usage
+
+### Start Backend
+```bash
 cd server
 npm install
 npm run dev
-Start Frontend
+```
+
+### Start Frontend
+```bash
 cd client
 npm install
 npm run dev
-🖨 Printer Control Logic (Port 8899)
+```
+
+---
+
+## 🖨 Printer Control Logic (Port 8899)
 
 The system continuously polls each printer via the FlashForge TCP interface.
 
-Commands
-Command	Purpose	Description
-~M27	Status	Checks if a print job is active
-~M105	Telemetry	Reads extruder and bed temperature
-~M26	Snipe	Cancels unauthorized activity
-🔐 Enforcement Policies
-⏱ Authorization Window
+### Commands
 
-Users must begin printing within 2 minutes of authentication.
+| Command | Purpose | Description |
+| :--- | :--- | :--- |
+| `~M27` | Status | Checks if a print job is active |
+| `~M105` | Telemetry | Reads extruder and bed temperature |
+| `~M26` | Snipe | Cancels unauthorized activity |
 
-🚫 Snipe Conditions
+---
 
+## 🔐 Enforcement Policies
+
+### ⏱ Authorization Window
+Users must begin printing within **2 minutes** of authentication.
+
+### 🚫 Snipe Conditions
 A print is immediately terminated if:
+* `~M105` detects heating without authorization.
+* `~M27` reports an active job without a valid session.
 
-~M105 detects heating without authorization
-~M27 reports an active job without a valid session
-🤝 Contributing
+---
 
-Pull requests are welcome.
-For major changes, open an issue first to discuss what you want to improve.
+## 🤝 Contributing
 
-📄 License
+Pull requests are welcome. For major changes, please open an issue first to discuss what you want to improve.
 
-MIT License
-See the LICENSE file for details.
+---
 
-🙌 Credits
+## 📄 License
 
-Maintained by @cristobairl
+MIT License. See the `LICENSE` file for details.
+
+---
+
+## 🙌 Credits
+
+Maintained by [@cristobairl](https://github.com/cristobairl)
