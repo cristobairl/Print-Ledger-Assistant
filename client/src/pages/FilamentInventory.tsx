@@ -165,12 +165,10 @@ export function FilamentInventory() {
 
   const metrics = useMemo(() => {
     const totalUsableWeight = spools.reduce((sum, spool) => sum + spool.usableWeightGrams, 0)
-    const assigned = spools.filter((spool) => spool.activePrinterId).length
     const lowStock = spools.filter((spool) => spool.usableWeightGrams <= 25).length
 
     return {
       totalSpools: spools.length,
-      assigned,
       lowStock,
       totalUsableWeight,
     }
@@ -316,9 +314,8 @@ export function FilamentInventory() {
 
         <section className="admin-hero">
           <div className="admin-hero__copy">
-            <p className="student-panel__eyebrow">Filament inventory</p>
-            <h1>Track active spools and usable grams</h1>
-            <p className="admin-hero__id">One active spool per printer. Student jobs can only use what the active spool can cover.</p>
+            <h1>Filament tracker</h1>
+            <p className="admin-hero__id">Active spools, usable grams, and quick assignments.</p>
           </div>
 
           <div className="admin-actions">
@@ -337,10 +334,6 @@ export function FilamentInventory() {
           <article className="admin-metric">
             <span>Total spools</span>
             <strong>{metrics.totalSpools}</strong>
-          </article>
-          <article className="admin-metric">
-            <span>Assigned now</span>
-            <strong>{metrics.assigned}</strong>
           </article>
           <article className="admin-metric">
             <span>Low stock</span>

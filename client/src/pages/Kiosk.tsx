@@ -141,9 +141,7 @@ export function Kiosk() {
         <div className="kiosk-panel__header">
           <p className="kiosk-panel__eyebrow">Print Ledger Assistant</p>
           <h1>Swipe your student ID</h1>
-          <p className="kiosk-panel__lead">
-            Use the reader to begin your print session.
-          </p>
+          <p className="kiosk-panel__lead">Use the reader to begin.</p>
         </div>
 
         <div className="reader-display" aria-live="polite">
@@ -157,7 +155,6 @@ export function Kiosk() {
         <div className="swipe-card">
           {swipeData ? (
             <>
-              <p className="swipe-card__label">Latest result</p>
               {swipeData.authorized ? (
                 <>
                   <p className="swipe-card__name">{swipeData.first_name}</p>
@@ -178,8 +175,8 @@ export function Kiosk() {
             </>
           ) : (
             <>
-              <p className="swipe-card__label">Ready</p>
-              <p className="swipe-card__name">Present card to reader</p>
+              <p className="swipe-card__name">Reader ready</p>
+              <p className="swipe-card__message">Swipe your card to continue.</p>
             </>
           )}
         </div>

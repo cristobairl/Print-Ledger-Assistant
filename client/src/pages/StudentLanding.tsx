@@ -11,7 +11,6 @@ const DEFAULT_JOB_ESTIMATED_WEIGHT_GRAMS = '250'
 const DEFAULT_JOB_REASON = 'EGN Final Project'
 
 type StudentJobFormState = {
-  studentIdentifier: string
   fileName: string
   estimatedTimeHours: string
   estimatedTimeMinutes: string
@@ -39,7 +38,7 @@ export function StudentLanding() {
   const [jobsError, setJobsError] = useState<string | null>(null)
   const [sessionRequestState, setSessionRequestState] = useState<'idle' | 'submitting'>('idle')
   const [sessionError, setSessionError] = useState<string | null>(null)
-  const [jobForm, setJobForm] = useState<StudentJobFormState>(() => createJobFormState(state))
+  const [jobForm, setJobForm] = useState<StudentJobFormState>(() => createJobFormState())
   const [jobFormSubmitted, setJobFormSubmitted] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
   const [endingPrintSession, setEndingPrintSession] = useState(false)
@@ -255,6 +254,14 @@ export function StudentLanding() {
     !hasLiveSession &&
     sessionRequestState !== 'submitting'
   const readinessBadgeLabel = canStartSession ? 'Ready to print' : 'Missing information'
+  const sessionStatusLabel =
+    currentSessionPrinter?.authorization.sessionState === 'active_print'
+      ? 'Print active'
+      : currentSessionPrinter?.authorization.sessionState === 'pending_start'
+        ? 'USB window open'
+        : selectedPrinter
+          ? 'Ready to start'
+          : 'Choose a printer'
 
   useEffect(() => {
     if (inactivityRemainingMs > 0 || closingSession) {
@@ -434,7 +441,7 @@ export function StudentLanding() {
             <span className="student-brand__mark">PLA</span>
             <div>
               <p className="student-panel__eyebrow">Print Ledger Assistant</p>
-              <p className="student-brand__subtle">Print Ledger Assistant</p>
+              <p className="student-brand__subtle">Student station</p>
             </div>
           </div>
           <div className="student-clock" aria-label={`Current time ${timeLabel}`}>
@@ -493,25 +500,24 @@ export function StudentLanding() {
           <div className="section-heading">
             <div>
               <p className="section-heading__eyebrow">Print details</p>
-              <h2>Enter your job information</h2>
+              <div className="student-heading-row">
+                <h2>Enter your job information</h2>
+                <button
+                  type="button"
+                  className="student-info-button tooltip-trigger"
+                  data-tooltip="You can grab this information from your slicer."
+                  aria-label="Job information help"
+                >
+                  i
+                </button>
+              </div>
               <p className="printer-page__lead">
-                Enter the file name, the print time shown on the printer, the print weight, and the job reason here. Started and ended timestamps still come from the system automatically.
+                Enter the file name, print time shown on the printer, print weight, and job reason.
               </p>
             </div>
           </div>
 
           <div className="student-form-grid">
-            <label className="student-field">
-              <span className="student-field__label">Student ID</span>
-              <input
-                className="student-field__input"
-                value={jobForm.studentIdentifier}
-                readOnly
-                disabled
-              />
-              <span className="student-field__hint">Locked from your swipe so the log stays tied to the right student.</span>
-            </label>
-
             <label className="student-field">
               <span className="student-field__label">File Name</span>
               <input
@@ -528,7 +534,7 @@ export function StudentLanding() {
               ) : null}
             </label>
 
-            <div className="student-field">
+            <div className="student-field student-field--time">
               <span className="student-field__label">Estimated Print Time</span>
               <div className="student-time-grid">
                 <NumericField
@@ -538,6 +544,7 @@ export function StudentLanding() {
                   placeholder="0"
                   options={{ step: 1, min: 0, max: printPolicy.maxPrintHours, decimals: 0 }}
                   error={null}
+                  hideLabel
                   onChange={(value) => {
                     updateJobForm('estimatedTimeHours', value)
                   }}
@@ -549,6 +556,7 @@ export function StudentLanding() {
                   placeholder="0"
                   options={{ step: 15, min: 0, max: estimatedMinuteMax, decimals: 0 }}
                   error={null}
+                  hideLabel
                   onChange={(value) => {
                     updateJobForm('estimatedTimeMinutes', value)
                   }}
@@ -558,7 +566,7 @@ export function StudentLanding() {
                 <span className="student-field__error">{jobFormErrors.estimatedTime}</span>
               ) : (
                 <span className="student-field__hint">
-                  Current maximum allowed print time is {printPolicy.maxPrintHours} hour{printPolicy.maxPrintHours === 1 ? '' : 's'}.
+                  Hours on the left, minutes on the right. Current maximum allowed print time is {printPolicy.maxPrintHours} hour{printPolicy.maxPrintHours === 1 ? '' : 's'}.
                 </span>
               )}
             </div>
@@ -570,24 +578,22 @@ export function StudentLanding() {
               placeholder="42"
               options={{ step: 1, min: 1, decimals: 0 }}
               hint="Use the buttons or type a value."
-              fieldClassName="student-field--align-with-time"
               error={jobFormSubmitted ? jobFormErrors.estimatedWeightGrams : null}
               onChange={(value) => {
                 updateJobForm('estimatedWeightGrams', value)
               }}
             />
 
-            <label className="student-field student-field--full">
+            <label className="student-field">
               <span className="student-field__label">Job Reason</span>
-              <textarea
-                className="student-field__input student-field__input--textarea"
+              <input
+                className="student-field__input"
                 value={jobForm.jobReason}
                 disabled={hasLiveSession || sessionRequestState === 'submitting'}
                 onChange={(event) => {
                   updateJobForm('jobReason', event.target.value)
                 }}
                 placeholder="What are you printing this for?"
-                rows={4}
               />
               {jobFormSubmitted && jobFormErrors.jobReason ? (
                 <span className="student-field__error">{jobFormErrors.jobReason}</span>
@@ -625,23 +631,16 @@ export function StudentLanding() {
             <p className="student-panel__eyebrow">{sessionCopy.eyebrow}</p>
             <h2>{sessionCopy.title}</h2>
             <p className="student-session-panel__detail">{sessionCopy.detail}</p>
-          </div>
-
-          <div className="student-session-panel__status">
-            <div className="student-session-chip">
-              <span className="label">Selected printer</span>
-              <strong>{selectedPrinter?.name ?? 'Choose a printer'}</strong>
-            </div>
-            <div className="student-session-chip">
-              <span className="label">Session status</span>
-              <strong>
-                {currentSessionPrinter?.authorization.sessionState === 'active_print'
-                  ? 'Print active'
-                  : currentSessionPrinter?.authorization.sessionState === 'pending_start'
-                    ? 'USB window open'
-                    : 'Ready to start'}
-              </strong>
-            </div>
+            {selectedPrinter || currentSessionPrinter ? (
+              <div className="student-session-panel__meta">
+                <span className="student-session-tag">
+                  {currentSessionPrinter?.name ?? selectedPrinter?.name}
+                </span>
+                <span className="student-session-tag student-session-tag--muted">
+                  {sessionStatusLabel}
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -653,9 +652,6 @@ export function StudentLanding() {
             <div>
               <p className="section-heading__eyebrow">Printer availability</p>
               <h2>Select a printer</h2>
-              <p className="printer-page__lead">
-                Green printers are ready for a new session. Red printers are busy or reserved. Grey printers are offline.
-              </p>
             </div>
           </div>
 
@@ -1113,9 +1109,8 @@ function getFilamentAvailabilityLabel(printer: Printer) {
   return printer.filament.reason
 }
 
-function createJobFormState(state: LandingState | null): StudentJobFormState {
+function createJobFormState(): StudentJobFormState {
   return {
-    studentIdentifier: state?.cardId ?? state?.studentId ?? 'Unknown student',
     fileName: DEFAULT_JOB_FILE_NAME,
     estimatedTimeHours: DEFAULT_JOB_ESTIMATED_HOURS,
     estimatedTimeMinutes: DEFAULT_JOB_ESTIMATED_MINUTES,

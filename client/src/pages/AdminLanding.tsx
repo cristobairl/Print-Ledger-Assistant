@@ -317,7 +317,6 @@ export function AdminLanding() {
 
           <div className="admin-intro-card__body">
             <div className="admin-intro-card__welcome">
-              <p className="student-panel__eyebrow">Admin access</p>
               <h1>Welcome back, {state.firstName}</h1>
               <p className="admin-intro-card__id">
                 {state.cardId ? `Card ${state.cardId}` : 'Card recognized'}
@@ -412,7 +411,7 @@ export function AdminLanding() {
                       </div>
                       <p className="admin-alert-item__detail">{getPriorityPrinterDetail(printer)}</p>
                       <p className="admin-printer-row__meta">
-                        {printer.ip} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
+                        {printer.ip} | {getAuthorizationSummary(printer)} | port {printer.connectivity.lastPort ?? 'n/a'}
                       </p>
                     </article>
                   )
@@ -509,7 +508,7 @@ export function AdminLanding() {
                     </button>
                   </div>
                   <p className="admin-printer-row__meta">
-                    {printer.ip} | {availability.label} | {printer.authorization.state} | port {printer.connectivity.lastPort ?? 'n/a'}
+                    {printer.ip} | {availability.label} | {getAuthorizationSummary(printer)} | port {printer.connectivity.lastPort ?? 'n/a'}
                   </p>
                 </article>
               )
@@ -664,7 +663,7 @@ function getQuickAuthorizationAction(printer: Printer, isPending: boolean) {
 
   if (printer.authorization.state === 'authorized') {
     return {
-      label: 'Unauthorize',
+      label: 'End session',
       disabled: false,
       tone: 'interactive' as const,
     }
@@ -679,10 +678,26 @@ function getQuickAuthorizationAction(printer: Printer, isPending: boolean) {
   }
 
   return {
-    label: 'Unauthorized',
+    label: 'Ready for swipe',
     disabled: true,
-    tone: 'idle' as const,
+    tone: 'ready' as const,
   }
+}
+
+function getAuthorizationSummary(printer: Printer) {
+  if (printer.authorization.state === 'authorized') {
+    if (printer.authorization.sessionState === 'active_print') {
+      return 'student print active'
+    }
+
+    if (printer.authorization.sessionState === 'pending_start') {
+      return 'student session open'
+    }
+
+    return 'session open'
+  }
+
+  return 'ready for swipe'
 }
 
 function compareFleetPrinters(left: Printer, right: Printer) {

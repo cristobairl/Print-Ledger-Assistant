@@ -411,16 +411,50 @@
   min-width: 0;
 }
 
-.student-time-grid .student-field__label {
-  font-size: 0.84rem;
-}
-
-.student-field--align-with-time .student-stepper {
-  margin-top: 31px;
-}
-
 .student-field--full {
   grid-column: 1 / -1; /* Tells this specific child to span across all available grid columns from the start (1) to the end (-1). */
+}
+
+.student-heading-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.student-heading-row h2 {
+  margin: 0;
+  flex: 0 1 auto;
+}
+
+.student-info-button {
+  width: 30px;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  border: 1px solid rgba(23, 35, 31, 0.14);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(23, 35, 31, 0.04);
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-info-button:hover,
+.student-info-button:focus-visible {
+  background: rgba(22, 90, 119, 0.1);
+  color: #165a77;
+}
+
+.student-field--time {
+  gap: 6px;
+}
+
+.student-field--time .student-time-grid {
+  margin-top: -2px;
 }
 
 .student-field__label {
@@ -524,8 +558,7 @@
 
 .student-session-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.7fr);
-  gap: 24px;
+  gap: 16px;
   background:
     radial-gradient(circle at center top, rgba(31, 122, 99, 0.12), transparent 40%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 242, 0.92));
@@ -549,25 +582,28 @@
   max-width: 52ch;
 }
 
-.student-session-panel__status {
-  display: grid;
-  gap: 12px;
-  align-content: start;
+.student-session-panel__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.student-session-chip {
-  display: grid;
-  gap: 8px;
-  padding: 18px;
-  border-radius: 8px;
+.student-session-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
   background: rgba(23, 35, 31, 0.04);
   border: 1px solid rgba(23, 35, 31, 0.08);
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.student-session-chip strong {
-  color: var(--text-strong);
-  font-size: clamp(1.15rem, 2.6vw, 1.6rem);
-  line-height: 1;
+.student-session-tag--muted {
+  color: var(--muted);
 }
 
 .student-panel__eyebrow {
@@ -610,7 +646,7 @@
 }
 
 .student-start-button {
-  width: min(420px, 100%);
+  width: 100%;
   min-height: 84px;
   border: 0;
   border-radius: 8px;
@@ -883,7 +919,7 @@
   width: min(1180px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 22px;
+  gap: 18px;
 }
 
 .admin-intro-card,
@@ -922,7 +958,7 @@
 
 .admin-intro-card__body {
   align-items: stretch;
-  padding: 26px 24px;
+  padding: 22px 24px;
 }
 
 .admin-intro-card__welcome,
@@ -938,7 +974,7 @@
 
 .admin-intro-card__welcome h1 {
   margin: 0;
-  font-size: clamp(2rem, 4.4vw, 3.4rem);
+  font-size: clamp(1.9rem, 4vw, 3.1rem);
   line-height: 0.98;
 }
 
@@ -1064,7 +1100,7 @@
 }
 
 .admin-metrics--filament {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .admin-metric {
@@ -1213,6 +1249,7 @@
 }
 
 .admin-printer-row__action--idle,
+.admin-printer-row__action--ready,
 .admin-printer-row__action--offline,
 .admin-printer-row__action--pending {
   cursor: default;
@@ -1221,6 +1258,11 @@
 .admin-printer-row__action--idle {
   background: rgba(23, 35, 31, 0.08);
   color: #17231f;
+}
+
+.admin-printer-row__action--ready {
+  background: rgba(31, 122, 99, 0.12);
+  color: #1f7a63;
 }
 
 .admin-printer-row__action--offline {
@@ -1604,10 +1646,6 @@
 
   .student-time-grid {
     grid-template-columns: 1fr;
-  }
-
-  .student-field--align-with-time .student-stepper {
-    margin-top: 0;
   }
 
   .student-printer-strip {

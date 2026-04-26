@@ -1180,13 +1180,22 @@ export class PrinterRadar {
     return true
   }
 
-  public deauthorize(printerId: string) {
+  public async deauthorize(printerId: string) {
     const printer = this.printers.find((item) => item.id === printerId)
     if (!printer) {
       return false
     }
 
-    void this.expireTrackedJobIfNeeded(printer)
+    const nowIso = new Date().toISOString()
+
+    if (printer.authorization.jobId && isUuidString(printer.authorization.jobId)) {
+      if (printer.jobRuntime.startedAt !== null) {
+        await this.finalizeTrackedJob(printer, nowIso)
+      } else {
+        await this.expireTrackedJobIfNeeded(printer)
+      }
+    }
+
     printer.authorization = this.createUnauthorizedAuthorization()
     this.resetTrackedJobRuntime(printer)
     return true
