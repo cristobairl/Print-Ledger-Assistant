@@ -42,7 +42,10 @@ export function StudentLanding() {
   const [jobFormSubmitted, setJobFormSubmitted] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
   const [endingPrintSession, setEndingPrintSession] = useState(false)
-  const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({ maxPrintHours: 5 })
+  const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({
+    maxPrintHours: 5,
+    maxWeeklyGrams: 500,
+  })
   const requestedWeightGrams = toNumber(jobForm.estimatedWeightGrams)
 
   if (!state?.firstName) {
@@ -644,7 +647,6 @@ export function StudentLanding() {
           </div>
         </section>
 
-        {sessionError ? <p className="student-inline-message student-inline-message--error">{sessionError}</p> : null}
         {printerError ? <p className="student-inline-message student-inline-message--warning">{printerError}</p> : null}
 
         <section className="student-printer-panel">
@@ -790,6 +792,35 @@ export function StudentLanding() {
                   }}
                 >
                   {endingPrintSession ? 'Ending Session...' : 'End Session'}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {sessionError ? (
+          <div className="modal-backdrop">
+            <section
+              className="modal-card modal-card--session modal-card--error"
+              aria-live="assertive"
+              aria-labelledby="student-session-error-title"
+            >
+              <div className="modal-header">
+                <div>
+                  <p className="student-panel__eyebrow">Session update needed</p>
+                  <h2 id="student-session-error-title">{getSessionErrorTitle(sessionError)}</h2>
+                </div>
+              </div>
+
+              <p className="student-session-modal__detail">{sessionError}</p>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="admin-button admin-button--primary"
+                  onClick={() => setSessionError(null)}
+                >
+                  Got it
                 </button>
               </div>
             </section>
@@ -1226,6 +1257,24 @@ function formatCountdown(remainingMs: number) {
   const seconds = totalSeconds % 60
 
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function getSessionErrorTitle(message: string) {
+  const normalized = message.toLowerCase()
+
+  if (normalized.includes('weekly filament limit')) {
+    return 'Weekly filament limit reached'
+  }
+
+  if (normalized.includes('end the print session')) {
+    return 'Unable to end session'
+  }
+
+  if (normalized.includes('choose a printer') || normalized.includes('complete the print details')) {
+    return 'Complete the required details'
+  }
+
+  return 'Unable to start session'
 }
 
 function formatFileSize(value: number | string | null) {

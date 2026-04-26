@@ -8,6 +8,7 @@ export type LandingState = {
 
 export type PrintPolicySettings = {
   maxPrintHours: number
+  maxWeeklyGrams: number
 }
 
 export type Printer = {

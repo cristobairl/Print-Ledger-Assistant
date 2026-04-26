@@ -6,21 +6,88 @@
   font-family: Bahnschrift, "Segoe UI Variable Text", "Segoe UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #20302c;
+  color: #243743;
   background:
-    radial-gradient(circle at top left, rgba(196, 234, 188, 0.42), transparent 28%),
-    linear-gradient(180deg, #eef3ea 0%, #f6f2ea 100%);
+    radial-gradient(circle at top left, rgba(207, 196, 147, 0.3), transparent 24%),
+    radial-gradient(circle at top right, rgba(0, 103, 71, 0.12), transparent 22%),
+    radial-gradient(circle at bottom left, rgba(49, 75, 93, 0.06), transparent 24%),
+    linear-gradient(180deg, #f7f4ec 0%, #ffffff 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-alt: rgba(247, 249, 244, 0.96);
-  --line: rgba(47, 70, 65, 0.12);
-  --text-strong: #17231f;
-  --muted: #61706b;
-  --shadow-soft: 0 18px 40px rgba(30, 52, 48, 0.08);
+
+  --usf-green: #006747;
+  --usf-gold: #cfc493;
+  --usf-white: #ffffff;
+  --usf-evergreen: #35584a;
+  --usf-sand: #f4efe3;
+  --usf-teal: #0f7c90;
+  --usf-storm: #314b5d;
+  --usf-sky: #5aa6d6;
+
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-alt: rgba(248, 245, 237, 0.96);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-soft: rgba(255, 255, 255, 0.78);
+  --surface-overlay: rgba(255, 255, 255, 0.68);
+  --surface-table: rgba(255, 255, 255, 0.9);
+  --surface-grad-start: rgba(255, 255, 255, 0.96);
+  --surface-grad-end: rgba(249, 246, 239, 0.93);
+  --hero-grad-start: rgba(255, 255, 255, 0.97);
+  --hero-grad-end: rgba(248, 245, 237, 0.94);
+  --line: rgba(49, 75, 93, 0.12);
+  --line-strong: rgba(49, 75, 93, 0.14);
+  --text-strong: #243743;
+  --text-ink: #1f2d2f;
+  --muted: #60717b;
+  --text-on-dark: #f7f7f2;
+  --shadow-soft: 0 18px 40px rgba(49, 75, 93, 0.08);
+  --shadow-tooltip: 0 14px 28px rgba(49, 75, 93, 0.18);
+  --shadow-elevated: 0 28px 60px rgba(49, 75, 93, 0.2);
+  --shadow-green: 0 18px 36px rgba(0, 103, 71, 0.18);
+  --shadow-green-hover: 0 22px 42px rgba(0, 103, 71, 0.22);
+  --shadow-storm: 0 10px 22px rgba(49, 75, 93, 0.14);
+  --shadow-storm-hover: 0 14px 26px rgba(49, 75, 93, 0.18);
+  --shadow-teal-soft: 0 18px 32px rgba(15, 124, 144, 0.16);
+
+  --tint-green: rgba(0, 103, 71, 0.12);
+  --tint-gold: rgba(207, 196, 147, 0.2);
+  --tint-teal: rgba(15, 124, 144, 0.12);
+  --tint-storm: rgba(49, 75, 93, 0.12);
+  --subtle-green: rgba(0, 103, 71, 0.05);
+  --subtle-storm: rgba(49, 75, 93, 0.05);
+  --subtle-storm-strong: rgba(49, 75, 93, 0.08);
+  --subtle-line: rgba(49, 75, 93, 0.1);
+  --subtle-pressed: rgba(49, 75, 93, 0.06);
+  --focus-ring: rgba(15, 124, 144, 0.18);
+  --focus-line: rgba(15, 124, 144, 0.32);
+  --tooltip-bg: rgba(49, 75, 93, 0.96);
+  --backdrop: rgba(49, 75, 93, 0.34);
+  --brand-mark-start: rgba(0, 103, 71, 0.16);
+  --brand-mark-end: rgba(207, 196, 147, 0.22);
+  --selected-border: rgba(15, 124, 144, 0.42);
+
+  --status-success: #006747;
+  --status-success-bg: rgba(0, 103, 71, 0.12);
+  --status-warning: #8a7235;
+  --status-warning-bg: rgba(207, 196, 147, 0.28);
+  --status-danger: #ae4131;
+  --status-danger-bg: rgba(174, 65, 49, 0.12);
+  --status-offline: #7b858d;
+  --status-offline-bg: rgba(123, 133, 141, 0.14);
+  --status-success-border: rgba(0, 103, 71, 0.28);
+  --status-danger-border: rgba(174, 65, 49, 0.28);
+  --status-offline-pulse: rgba(123, 133, 141, 0.34);
+  --status-warning-pulse: rgba(138, 114, 53, 0.35);
+  --status-success-pulse: rgba(0, 103, 71, 0.35);
+  --status-danger-pulse: rgba(174, 65, 49, 0.38);
+  --danger-tint-strong: rgba(174, 65, 49, 0.08);
+
+  --button-disabled-start: #98a59e;
+  --button-disabled-end: #7f8b85;
+  --button-active-start: #1f2d2f;
+  --button-active-end: #006747;
 }
 
 /* =========================================

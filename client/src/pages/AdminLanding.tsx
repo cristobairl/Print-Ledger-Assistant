@@ -17,7 +17,10 @@ export function AdminLanding() {
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [closingSession, setClosingSession] = useState(false)
-  const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({ maxPrintHours: 5 })
+  const [printPolicy, setPrintPolicy] = useState<PrintPolicySettings>({
+    maxPrintHours: 5,
+    maxWeeklyGrams: 500,
+  })
   const [policyLoading, setPolicyLoading] = useState(true)
   const [policyError, setPolicyError] = useState<string | null>(null)
   const [policySaveState, setPolicySaveState] = useState<'idle' | 'saving'>('idle')
@@ -244,6 +247,7 @@ export function AdminLanding() {
         },
         body: JSON.stringify({
           maxPrintHours: printPolicy.maxPrintHours,
+          maxWeeklyGrams: printPolicy.maxWeeklyGrams,
         }),
       })
 
@@ -550,11 +554,11 @@ export function AdminLanding() {
             ) : null}
           </section>
 
-          <section className="admin-panel">
+          <section className="admin-panel admin-panel--policy">
             <div className="section-heading">
               <div>
                 <p className="section-heading__eyebrow">Print rules</p>
-                <h2>Time limit per print</h2>
+                <h2>Student print limits</h2>
               </div>
             </div>
 
@@ -562,7 +566,7 @@ export function AdminLanding() {
             {policyError ? <p className="admin-empty admin-empty--error">{policyError}</p> : null}
 
             {!policyLoading ? (
-              <div className="admin-setting-row">
+              <div className="admin-setting-stack">
                 <label className="student-field admin-setting-field">
                   <span className="student-field__label">Maximum print time (hours)</span>
                   <div className="student-stepper">
@@ -571,6 +575,7 @@ export function AdminLanding() {
                       className="student-stepper__button"
                       onClick={() =>
                         setPrintPolicy((current) => ({
+                          ...current,
                           maxPrintHours: Math.max(1, current.maxPrintHours - 1),
                         }))
                       }
@@ -584,6 +589,7 @@ export function AdminLanding() {
                       onChange={(event) => {
                         const nextValue = Number.parseInt(event.target.value, 10)
                         setPrintPolicy((current) => ({
+                          ...current,
                           maxPrintHours: Number.isFinite(nextValue)
                             ? Math.min(Math.max(nextValue, 1), 24)
                             : current.maxPrintHours,
@@ -595,7 +601,52 @@ export function AdminLanding() {
                       className="student-stepper__button"
                       onClick={() =>
                         setPrintPolicy((current) => ({
+                          ...current,
                           maxPrintHours: Math.min(24, current.maxPrintHours + 1),
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                </label>
+
+                <label className="student-field admin-setting-field">
+                  <span className="student-field__label">Maximum filament per week (grams)</span>
+                  <div className="student-stepper">
+                    <button
+                      type="button"
+                      className="student-stepper__button"
+                      onClick={() =>
+                        setPrintPolicy((current) => ({
+                          ...current,
+                          maxWeeklyGrams: Math.max(1, current.maxWeeklyGrams - 25),
+                        }))
+                      }
+                    >
+                      -
+                    </button>
+                    <input
+                      className="student-field__input student-field__input--stepper"
+                      inputMode="numeric"
+                      value={String(printPolicy.maxWeeklyGrams)}
+                      onChange={(event) => {
+                        const nextValue = Number.parseInt(event.target.value, 10)
+                        setPrintPolicy((current) => ({
+                          ...current,
+                          maxWeeklyGrams: Number.isFinite(nextValue)
+                            ? Math.min(Math.max(nextValue, 1), 10000)
+                            : current.maxWeeklyGrams,
+                        }))
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="student-stepper__button"
+                      onClick={() =>
+                        setPrintPolicy((current) => ({
+                          ...current,
+                          maxWeeklyGrams: Math.min(10000, current.maxWeeklyGrams + 25),
                         }))
                       }
                     >
@@ -607,7 +658,7 @@ export function AdminLanding() {
                 <button
                   type="button"
                   className="admin-button admin-button--primary tooltip-trigger"
-                  data-tooltip="Apply this maximum print time."
+                  data-tooltip="Apply these student print limits."
                   disabled={policySaveState === 'saving'}
                   onClick={() => {
                     void handleSavePrintPolicy()
@@ -678,7 +729,7 @@ function getQuickAuthorizationAction(printer: Printer, isPending: boolean) {
   }
 
   return {
-    label: 'Ready for swipe',
+    label: 'Open to student',
     disabled: true,
     tone: 'ready' as const,
   }
@@ -697,7 +748,7 @@ function getAuthorizationSummary(printer: Printer) {
     return 'session open'
   }
 
-  return 'ready for swipe'
+  return 'no active student session'
 }
 
 function compareFleetPrinters(left: Printer, right: Printer) {

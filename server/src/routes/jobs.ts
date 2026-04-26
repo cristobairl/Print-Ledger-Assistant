@@ -61,6 +61,19 @@ router.post('/', async (req, res) => {
   }
 
   const input = validation.value as ValidatedCreateJobInput
+  const weeklyUsage = await getStudentWeeklyUsageGrams(input.studentId)
+  if (!weeklyUsage.ok) {
+    return res.status(500).json({ error: 'Failed to verify weekly filament usage.' })
+  }
+
+  const { maxWeeklyGrams } = getPrintPolicySettings()
+  const projectedWeeklyUsage = weeklyUsage.gramsUsed + input.estimatedWeightGrams
+  if (projectedWeeklyUsage > maxWeeklyGrams) {
+    return res.status(400).json({
+      error: `This job would exceed the weekly filament limit of ${maxWeeklyGrams} g. ${Math.round(weeklyUsage.gramsUsed)} g used so far this week.`,
+    })
+  }
+
   const createdJob = await createJobRecord(input)
   if (!createdJob.ok) {
     return res.status(500).json({ error: 'Failed to create the job record.' })
@@ -78,6 +91,19 @@ router.post('/session', async (req, res) => {
 
   const durationMinutes = toPositiveInteger(body.durationMinutes)
   const input = validation.value as ValidatedCreateJobInput
+  const weeklyUsage = await getStudentWeeklyUsageGrams(input.studentId)
+  if (!weeklyUsage.ok) {
+    return res.status(500).json({ error: 'Failed to verify weekly filament usage.' })
+  }
+
+  const { maxWeeklyGrams } = getPrintPolicySettings()
+  const projectedWeeklyUsage = weeklyUsage.gramsUsed + input.estimatedWeightGrams
+  if (projectedWeeklyUsage > maxWeeklyGrams) {
+    return res.status(400).json({
+      error: `This job would exceed the weekly filament limit of ${maxWeeklyGrams} g. ${Math.round(weeklyUsage.gramsUsed)} g used so far this week.`,
+    })
+  }
+
   const createdJob = await createJobRecord(input)
   if (!createdJob.ok) {
     return res.status(500).json({ error: 'Failed to create the job record.' })
@@ -169,6 +195,44 @@ function validateCreateJobBody(body: CreateJobBody): CreateJobValidationResult {
   }
 }
 
+type StudentWeeklyUsageResult =
+  | { ok: true; gramsUsed: number }
+  | { ok: false }
+
+async function getStudentWeeklyUsageGrams(studentId: string): Promise<StudentWeeklyUsageResult> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('estimated_weight_grams, status, created_at')
+    .eq('student_id', studentId)
+    .gte('created_at', getCurrentWeekStartIso())
+
+  if (error) {
+    console.error(`[Jobs] Failed to load weekly usage for student ${studentId}.`, error)
+    return { ok: false }
+  }
+
+  const gramsUsed = (data ?? []).reduce((total, row) => {
+    const typedRow = row as Pick<JobRow, 'estimated_weight_grams' | 'status'>
+
+    if (typedRow.status === 'expired') {
+      return total
+    }
+
+    const weight = toPositiveNumber(typedRow.estimated_weight_grams)
+    return total + (weight ?? 0)
+  }, 0)
+
+  return { ok: true, gramsUsed }
+}
+
+function getCurrentWeekStartIso(now = new Date()) {
+  const localStart = new Date(now)
+  localStart.setHours(0, 0, 0, 0)
+  localStart.setDate(localStart.getDate() - localStart.getDay())
+
+  return localStart.toISOString()
+}
+
 async function createJobRecord(input: ValidatedCreateJobInput) {
   const insertPayload = {
     student_id: input.studentId,
@@ -233,7 +297,7 @@ function mapJobRow(row: JobRow) {
   }
 }
 
-function toPositiveNumber(value: number | string | undefined) {
+function toPositiveNumber(value: number | string | null | undefined) {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return value
   }

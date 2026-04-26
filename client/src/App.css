@@ -14,7 +14,7 @@
   border-radius: 8px;
   /* Layering multiple backgrounds: A semi-transparent gradient on top of the solid --surface variable defined in index.css */
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9)),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end)),
     var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-soft);
@@ -23,11 +23,11 @@
 }
 
 .kiosk-panel--success {
-  border-color: rgba(31, 122, 99, 0.28);
+  border-color: var(--status-success-border);
 }
 
 .kiosk-panel--error {
-  border-color: rgba(174, 65, 49, 0.28);
+  border-color: var(--status-danger-border);
 }
 
 .kiosk-panel__header,
@@ -74,13 +74,13 @@
   max-width: 240px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(23, 35, 31, 0.96);
-  color: #f4f7f2;
+  background: var(--tooltip-bg);
+  color: var(--text-on-dark);
   font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.35;
   text-align: center;
-  box-shadow: 0 14px 28px rgba(23, 35, 31, 0.18);
+  box-shadow: var(--shadow-tooltip);
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease, transform 120ms ease;
@@ -103,32 +103,32 @@
   gap: 18px;
   padding: 20px 22px;
   border-radius: 8px;
-  background: rgba(23, 35, 31, 0.04);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm);
+  border: 1px solid var(--subtle-storm-strong);
 }
 
 .reader-display__pulse {
   width: 18px;
   aspect-ratio: 1; /* Guarantees the element stays a perfect square (which border-radius turns into a perfect circle) regardless of its width. */
   border-radius: 50%;
-  background: #95a39a;
-  box-shadow: 0 0 0 0 rgba(149, 163, 154, 0.38);
+  background: var(--status-offline);
+  box-shadow: 0 0 0 0 var(--status-offline-pulse);
   animation: pulse 1.8s infinite;
 }
 
 .reader-display__pulse--reading {
-  background: #f4a261;
-  box-shadow: 0 0 0 0 rgba(244, 162, 97, 0.38);
+  background: var(--status-warning);
+  box-shadow: 0 0 0 0 var(--status-warning-pulse);
 }
 
 .reader-display__pulse--success {
-  background: #1f7a63;
-  box-shadow: 0 0 0 0 rgba(31, 122, 99, 0.38);
+  background: var(--status-success);
+  box-shadow: 0 0 0 0 var(--status-success-pulse);
 }
 
 .reader-display__pulse--error {
-  background: #ae4131;
-  box-shadow: 0 0 0 0 rgba(174, 65, 49, 0.38);
+  background: var(--status-danger);
+  box-shadow: 0 0 0 0 var(--status-danger-pulse);
 }
 
 .reader-display__value,
@@ -145,9 +145,9 @@
   padding: 28px;
   border-radius: 8px;
   background:
-    radial-gradient(circle at top right, rgba(196, 234, 188, 0.34), transparent 30%),
-    rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+    radial-gradient(circle at top right, var(--tint-gold), transparent 30%),
+    var(--surface);
+  border: 1px solid var(--subtle-storm-strong);
   min-height: 200px;
   align-content: center;
 }
@@ -171,7 +171,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm-strong);
   color: var(--text-strong);
   font-weight: 700;
 }
@@ -221,7 +221,7 @@
   border-radius: 8px;
   border: 1px solid var(--line);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9)),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end)),
     var(--surface);
   box-shadow: var(--shadow-soft);
 }
@@ -279,8 +279,8 @@
   min-width: 136px;
   padding: 12px 14px;
   border-radius: 8px;
-  background: rgba(23, 35, 31, 0.04);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm);
+  border: 1px solid var(--subtle-storm-strong);
 }
 
 .session-guard__timer strong {
@@ -294,15 +294,15 @@
   border-radius: 8px;
   min-height: 52px;
   padding: 0 18px;
-  background: rgba(23, 35, 31, 0.88);
-  color: #f4f7f2;
+  background: var(--usf-storm);
+  color: var(--text-on-dark);
   font-weight: 700;
   cursor: pointer;
 }
 
 .session-guard__button:disabled {
   cursor: default;
-  background: #7e8d94;
+  background: linear-gradient(145deg, var(--button-disabled-start), var(--button-disabled-end));
 }
 
 .student-brand {
@@ -318,8 +318,8 @@
   place-items: center;
   border-radius: 8px;
   background:
-    linear-gradient(160deg, rgba(31, 122, 99, 0.18), rgba(17, 77, 101, 0.18)),
-    rgba(255, 255, 255, 0.72);
+    linear-gradient(160deg, var(--brand-mark-start), var(--brand-mark-end)),
+    var(--surface-soft);
   color: var(--text-strong);
   font-size: 1.1rem;
   font-weight: 800;
@@ -432,11 +432,11 @@
   width: 30px;
   aspect-ratio: 1;
   flex: 0 0 auto;
-  border: 1px solid rgba(23, 35, 31, 0.14);
+  border: 1px solid var(--line-strong);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: rgba(23, 35, 31, 0.04);
+  background: var(--subtle-storm);
   color: var(--muted);
   font-size: 0.92rem;
   font-weight: 700;
@@ -445,8 +445,8 @@
 
 .student-info-button:hover,
 .student-info-button:focus-visible {
-  background: rgba(22, 90, 119, 0.1);
-  color: #165a77;
+  background: var(--tint-teal);
+  color: var(--usf-teal);
 }
 
 .student-field--time {
@@ -454,7 +454,7 @@
 }
 
 .student-field--time .student-time-grid {
-  margin-top: -2px;
+  margin-top: -5px;
 }
 
 .student-field__label {
@@ -467,20 +467,20 @@
   width: 100%;
   min-height: 52px;
   border-radius: 8px;
-  border: 1px solid rgba(23, 35, 31, 0.14);
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-strong);
   padding: 12px 14px;
   color: var(--text-strong);
   font: inherit;
 }
 
 .student-field__input:focus {
-  outline: 2px solid rgba(22, 90, 119, 0.18);
-  border-color: rgba(22, 90, 119, 0.32);
+  outline: 2px solid var(--focus-ring);
+  border-color: var(--focus-line);
 }
 
 .student-field__input:disabled {
-  background: rgba(23, 35, 31, 0.04);
+  background: var(--subtle-storm);
   color: var(--muted);
 }
 
@@ -509,23 +509,23 @@
   align-items: stretch;
   width: 100%;
   border-radius: 8px;
-  border: 1px solid rgba(23, 35, 31, 0.14);
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-strong);
   overflow: hidden;
 }
 
 .student-stepper:focus-within {
-  outline: 2px solid rgba(22, 90, 119, 0.18);
-  border-color: rgba(22, 90, 119, 0.32);
+  outline: 2px solid var(--focus-ring);
+  border-color: var(--focus-line);
 }
 
 .student-stepper--disabled {
-  background: rgba(23, 35, 31, 0.04);
+  background: var(--subtle-storm);
 }
 
 .student-stepper__button {
   border: 0;
-  background: rgba(23, 35, 31, 0.05);
+  background: var(--subtle-pressed);
   color: var(--text-strong);
   font-size: 1.35rem;
   font-weight: 700;
@@ -534,12 +534,12 @@
 
 .student-stepper__button:hover,
 .student-stepper__button:focus-visible {
-  background: rgba(22, 90, 119, 0.12);
+  background: var(--tint-teal);
 }
 
 .student-stepper__button:disabled {
   cursor: default;
-  background: rgba(23, 35, 31, 0.04);
+  background: var(--subtle-storm);
   color: var(--muted);
 }
 
@@ -553,15 +553,15 @@
 }
 
 .student-field__error {
-  color: #ae4131;
+  color: var(--status-danger);
 }
 
 .student-session-panel {
   display: grid;
   gap: 16px;
   background:
-    radial-gradient(circle at center top, rgba(31, 122, 99, 0.12), transparent 40%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 242, 0.92));
+    radial-gradient(circle at center top, var(--status-success-bg), transparent 40%),
+    linear-gradient(145deg, var(--hero-grad-start), var(--hero-grad-end));
 }
 
 .student-session-panel__copy {
@@ -594,8 +594,8 @@
   align-items: center;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(23, 35, 31, 0.04);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm);
+  border: 1px solid var(--subtle-storm-strong);
   color: var(--text-strong);
   font-size: 0.9rem;
   font-weight: 700;
@@ -629,20 +629,20 @@
   align-items: center;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(31, 122, 99, 0.12);
-  color: #1f7a63;
+  background: var(--status-success-bg);
+  color: var(--status-success);
   font-size: 0.86rem;
   font-weight: 700;
 }
 
 .student-badge--muted {
-  background: rgba(23, 35, 31, 0.08);
-  color: #17231f;
+  background: var(--subtle-storm-strong);
+  color: var(--text-ink);
 }
 
 .student-badge--admin {
-  background: rgba(23, 35, 31, 0.12);
-  color: #17231f;
+  background: var(--tint-storm);
+  color: var(--text-ink);
 }
 
 .student-start-button {
@@ -651,34 +651,42 @@
   border: 0;
   border-radius: 8px;
   padding: 18px 24px;
-  background: linear-gradient(145deg, #1f7a63, #165a77);
-  color: #f4f7f2;
+  background: linear-gradient(145deg, var(--status-success), var(--usf-evergreen));
+  color: var(--text-on-dark);
   font-size: clamp(1.2rem, 2.4vw, 1.6rem);
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 18px 36px rgba(22, 90, 119, 0.24);
+  box-shadow: var(--shadow-green);
   transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
 .student-start-button:hover,
 .student-start-button:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 22px 42px rgba(22, 90, 119, 0.28);
+  box-shadow: var(--shadow-green-hover);
 }
 
 .student-start-button:disabled {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
-  background: linear-gradient(145deg, #8ea0a8, #7e8d94);
+  background: linear-gradient(145deg, var(--button-disabled-start), var(--button-disabled-end));
 }
 
 .student-start-button--active {
-  background: linear-gradient(145deg, #17231f, #1f7a63);
+  background: linear-gradient(145deg, var(--button-active-start), var(--button-active-end));
 }
 
 .modal-card--session {
   width: min(520px, 100%);
+}
+
+.modal-card--error {
+  border-color: var(--status-danger-border);
+  background:
+    radial-gradient(circle at top right, var(--status-danger-bg), transparent 28%),
+    linear-gradient(145deg, var(--hero-grad-start), var(--hero-grad-end)),
+    var(--surface);
 }
 
 .student-session-modal__detail {
@@ -693,8 +701,8 @@
   gap: 10px;
   padding: 20px 22px;
   border-radius: 8px;
-  background: rgba(23, 35, 31, 0.04);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm);
+  border: 1px solid var(--subtle-storm-strong);
 }
 
 .student-session-modal__timer strong {
@@ -725,7 +733,7 @@
 .student-printer-tile:hover,
 .student-printer-tile:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 18px 32px rgba(22, 90, 119, 0.16);
+  box-shadow: var(--shadow-teal-soft);
 }
 
 .student-printer-tile:disabled {
@@ -735,8 +743,8 @@
 }
 
 .student-printer-tile--selected {
-  border-color: rgba(22, 90, 119, 0.42);
-  box-shadow: 0 0 0 2px rgba(22, 90, 119, 0.12), var(--shadow-soft);
+  border-color: var(--selected-border);
+  box-shadow: 0 0 0 2px var(--tint-teal), var(--shadow-soft);
 }
 
 .student-printer-tile__header {
@@ -753,18 +761,18 @@
 }
 
 .student-printer-dot--available {
-  background: #1f7a63;
-  box-shadow: 0 0 0 6px rgba(31, 122, 99, 0.12);
+  background: var(--status-success);
+  box-shadow: 0 0 0 6px var(--status-success-bg);
 }
 
 .student-printer-dot--busy {
-  background: #ae4131;
-  box-shadow: 0 0 0 6px rgba(174, 65, 49, 0.12);
+  background: var(--status-danger);
+  box-shadow: 0 0 0 6px var(--status-danger-bg);
 }
 
 .student-printer-dot--offline {
-  background: #76827d;
-  box-shadow: 0 0 0 6px rgba(118, 130, 125, 0.12);
+  background: var(--status-offline);
+  box-shadow: 0 0 0 6px var(--status-offline-bg);
 }
 
 .student-printer-tile__status {
@@ -796,20 +804,20 @@
 
 .student-printer-tile--available {
   background:
-    radial-gradient(circle at top right, rgba(31, 122, 99, 0.12), transparent 32%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9));
+    radial-gradient(circle at top right, var(--status-success-bg), transparent 32%),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end));
 }
 
 .student-printer-tile--busy {
   background:
-    radial-gradient(circle at top right, rgba(174, 65, 49, 0.1), transparent 30%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9));
+    radial-gradient(circle at top right, var(--danger-tint-strong), transparent 30%),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end));
 }
 
 .student-printer-tile--offline {
   background:
-    radial-gradient(circle at top right, rgba(118, 130, 125, 0.12), transparent 32%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9));
+    radial-gradient(circle at top right, var(--status-offline-bg), transparent 32%),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end));
 }
 
 .student-inline-message,
@@ -821,17 +829,17 @@
 .student-inline-message {
   padding: 14px 16px;
   border-radius: 8px;
-  border: 1px solid rgba(23, 35, 31, 0.08);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--subtle-storm-strong);
+  background: var(--surface-soft);
 }
 
 .student-inline-message--warning {
-  color: #a65b1f;
+  color: var(--status-warning);
 }
 
 .student-inline-message--error,
 .student-empty--error {
-  color: #ae4131;
+  color: var(--status-danger);
 }
 
 /* =========================================
@@ -842,26 +850,26 @@
   max-width: 100%;
   overflow-x: auto;
   border-radius: 8px;
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  border: 1px solid var(--subtle-storm-strong);
 }
 
 .student-table {
   width: 100%;
   border-collapse: collapse;
   min-width: 1280px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--surface-table);
 }
 
 .student-table th,
 .student-table td {
   padding: 15px 16px;
   text-align: left;
-  border-bottom: 1px solid rgba(23, 35, 31, 0.08);
+  border-bottom: 1px solid var(--subtle-storm-strong);
   vertical-align: top;
 }
 
 .student-table th {
-  background: rgba(23, 35, 31, 0.04);
+  background: var(--subtle-storm);
   color: var(--muted);
   font-size: 0.8rem;
   text-transform: uppercase;
@@ -903,7 +911,7 @@
 .student-footer__admin {
   border-radius: 8px;
   padding: 12px 16px;
-  background: rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm-strong);
   color: var(--text-strong);
 }
 
@@ -929,7 +937,7 @@
   border-radius: 8px;
   border: 1px solid var(--line);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9)),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end)),
     var(--surface);
   box-shadow: var(--shadow-soft);
 }
@@ -938,9 +946,9 @@
   display: grid;
   overflow: hidden;
   background:
-    radial-gradient(circle at top right, rgba(17, 77, 101, 0.16), transparent 30%),
-    radial-gradient(circle at bottom left, rgba(31, 122, 99, 0.12), transparent 26%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 242, 0.92));
+    radial-gradient(circle at top right, var(--tint-gold), transparent 30%),
+    radial-gradient(circle at bottom left, var(--status-success-bg), transparent 26%),
+    linear-gradient(145deg, var(--hero-grad-start), var(--hero-grad-end));
 }
 
 .admin-intro-card__top,
@@ -953,7 +961,7 @@
 
 .admin-intro-card__top {
   padding: 18px 24px;
-  border-bottom: 1px solid rgba(23, 35, 31, 0.08);
+  border-bottom: 1px solid var(--subtle-storm-strong);
 }
 
 .admin-intro-card__body {
@@ -990,8 +998,8 @@
   gap: 16px;
   padding: 18px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.56);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--surface-overlay);
+  border: 1px solid var(--subtle-storm-strong);
 }
 
 .admin-intro-card__session-copy {
@@ -1006,9 +1014,9 @@
   gap: 20px;
   padding: 32px;
   background:
-    radial-gradient(circle at top right, rgba(17, 77, 101, 0.16), transparent 30%),
-    radial-gradient(circle at bottom left, rgba(31, 122, 99, 0.12), transparent 26%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 242, 0.92));
+    radial-gradient(circle at top right, var(--tint-gold), transparent 30%),
+    radial-gradient(circle at bottom left, var(--status-success-bg), transparent 26%),
+    linear-gradient(145deg, var(--hero-grad-start), var(--hero-grad-end));
 }
 
 .admin-hero__copy {
@@ -1037,8 +1045,8 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
   border-radius: 8px;
-  border: 1px solid rgba(23, 35, 31, 0.08);
-  background: rgba(23, 35, 31, 0.04);
+  border: 1px solid var(--subtle-storm-strong);
+  background: var(--subtle-storm);
   overflow: hidden;
 }
 
@@ -1050,7 +1058,7 @@
 }
 
 .admin-overview-stat:not(:last-child) {
-  border-right: 1px solid rgba(23, 35, 31, 0.08);
+  border-right: 1px solid var(--subtle-storm-strong);
 }
 
 .admin-overview-stat span {
@@ -1080,12 +1088,12 @@
 }
 
 .admin-button--primary {
-  background: linear-gradient(145deg, #165a77, #1f7a63);
-  color: #f4f7f2;
+  background: linear-gradient(145deg, var(--status-success), var(--usf-evergreen));
+  color: var(--text-on-dark);
 }
 
 .admin-button--secondary {
-  background: rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm-strong);
   color: var(--text-strong);
 }
 
@@ -1135,10 +1143,12 @@
 
 .admin-priority-grid {
   grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  align-items: stretch;
 }
 
 .admin-support-grid {
   grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  align-items: start;
 }
 
 .admin-panels--filament {
@@ -1149,6 +1159,14 @@
   display: grid;
   gap: 18px;
   padding: 22px;
+}
+
+.admin-priority-grid > .admin-panel {
+  height: 100%;
+}
+
+.admin-panel--policy {
+  align-content: start;
 }
 
 .admin-panel__header-row {
@@ -1163,15 +1181,21 @@
   display: grid;
   gap: 14px;
   padding-top: 6px;
-  border-top: 1px solid rgba(23, 35, 31, 0.08);
+  border-top: 1px solid var(--subtle-storm-strong);
 }
 
 .admin-setting-row {
   display: flex;
-  align-items: end;
+  align-items: start;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.admin-setting-stack {
+  display: grid;
+  gap: 16px;
+  align-content: start;
 }
 
 .admin-action-stack {
@@ -1201,8 +1225,8 @@
   gap: 8px;
   padding: 16px;
   border-radius: 8px;
-  background: rgba(23, 35, 31, 0.04);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm);
+  border: 1px solid var(--subtle-storm-strong);
 }
 
 .admin-printer-row__header,
@@ -1237,15 +1261,15 @@
 }
 
 .admin-printer-row__action--interactive {
-  background: rgba(23, 35, 31, 0.88);
-  color: #f4f7f2;
-  box-shadow: 0 10px 22px rgba(23, 35, 31, 0.14);
+  background: var(--usf-storm);
+  color: var(--text-on-dark);
+  box-shadow: var(--shadow-storm);
 }
 
 .admin-printer-row__action--interactive:hover,
 .admin-printer-row__action--interactive:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(23, 35, 31, 0.18);
+  box-shadow: var(--shadow-storm-hover);
 }
 
 .admin-printer-row__action--idle,
@@ -1256,23 +1280,23 @@
 }
 
 .admin-printer-row__action--idle {
-  background: rgba(23, 35, 31, 0.08);
-  color: #17231f;
+  background: var(--subtle-storm-strong);
+  color: var(--text-ink);
 }
 
 .admin-printer-row__action--ready {
-  background: rgba(31, 122, 99, 0.12);
-  color: #1f7a63;
+  background: var(--status-success-bg);
+  color: var(--status-success);
 }
 
 .admin-printer-row__action--offline {
-  background: rgba(174, 65, 49, 0.12);
-  color: #ae4131;
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
 }
 
 .admin-printer-row__action--pending {
-  background: rgba(22, 90, 119, 0.12);
-  color: #165a77;
+  background: var(--tint-teal);
+  color: var(--usf-teal);
 }
 
 .admin-printer-row__action:disabled {
@@ -1287,7 +1311,7 @@
 }
 
 .admin-empty--error {
-  color: #ae4131;
+  color: var(--status-danger);
 }
 
 /* =========================================
@@ -1325,7 +1349,7 @@
 }
 
 .printer-page__message--error {
-  color: #ae4131;
+  color: var(--status-danger);
 }
 
 .hero-stats {
@@ -1340,7 +1364,7 @@
   border-radius: 8px;
   border: 1px solid var(--line);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 242, 0.9)),
+    linear-gradient(145deg, var(--surface-grad-start), var(--surface-grad-end)),
     var(--surface);
   box-shadow: var(--shadow-soft);
 }
@@ -1418,32 +1442,32 @@
 
 .status-pill--online,
 .status-pill--printing {
-  background: rgba(31, 122, 99, 0.12);
-  color: #1f7a63;
+  background: var(--status-success-bg);
+  color: var(--status-success);
 }
 
 .status-pill--offline,
 .status-pill--unknown {
-  background: rgba(174, 65, 49, 0.12);
-  color: #ae4131;
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
 }
 
 .status-pill--heating {
-  background: rgba(244, 162, 97, 0.16);
-  color: #a65b1f;
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
 }
 
 .status-pill--idle {
-  background: rgba(23, 35, 31, 0.08);
-  color: #17231f;
+  background: var(--subtle-storm-strong);
+  color: var(--text-ink);
 }
 
 .printer-card__button {
   border: 0;
   border-radius: 8px;
   padding: 10px 14px;
-  background: #17231f;
-  color: #f4f7f2;
+  background: linear-gradient(145deg, var(--button-active-start), var(--usf-evergreen));
+  color: var(--text-on-dark);
   font-weight: 700;
   cursor: pointer;
 }
@@ -1452,8 +1476,8 @@
   margin: 0;
   padding: 16px;
   border-radius: 8px;
-  background: rgba(23, 35, 31, 0.05);
-  border: 1px solid rgba(23, 35, 31, 0.08);
+  background: var(--subtle-pressed);
+  border: 1px solid var(--subtle-storm-strong);
   color: var(--text-strong);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1529,7 +1553,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(19, 27, 24, 0.48);
+  background: var(--backdrop);
   backdrop-filter: blur(6px); /* Applies a frosted-glass blur effect to the content behind the backdrop. */
   z-index: 40;
 }
@@ -1543,10 +1567,10 @@
   border-radius: 8px;
   border: 1px solid var(--line);
   background:
-    radial-gradient(circle at top right, rgba(17, 77, 101, 0.12), transparent 26%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(246, 248, 242, 0.94)),
+    radial-gradient(circle at top right, var(--tint-teal), transparent 26%),
+    linear-gradient(145deg, var(--hero-grad-start), var(--hero-grad-end)),
     var(--surface);
-  box-shadow: 0 28px 60px rgba(17, 24, 22, 0.24);
+  box-shadow: var(--shadow-elevated);
 }
 
 .modal-card--filament {
@@ -1566,7 +1590,7 @@
   border-radius: 8px;
   min-height: 48px;
   padding: 0 16px;
-  background: rgba(23, 35, 31, 0.08);
+  background: var(--subtle-storm-strong);
   color: var(--text-strong);
   font-weight: 700;
   cursor: pointer;
@@ -1690,7 +1714,7 @@
 
   .admin-overview-stat:not(:last-child) {
     border-right: 0;
-    border-bottom: 1px solid rgba(23, 35, 31, 0.08);
+    border-bottom: 1px solid var(--subtle-storm-strong);
   }
 
   .modal-backdrop {
@@ -1705,3 +1729,5 @@
     align-items: flex-start;
   }
 }
+
+
