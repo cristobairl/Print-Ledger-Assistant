@@ -1,58 +1,113 @@
-# Print Ledger Assistant
+Print Ledger Assistant
+Status Stack Printer
 
-[![Status](https://img.shields.io/badge/Status-Active-success.svg)](#)
-[![Stack](https://img.shields.io/badge/Stack-React%20%7C%20Vite%20%7C%20TypeScript-blue.svg)](#)
-[![Printer](https://img.shields.io/badge/Hardware-FlashForge-orange.svg)](#)
+Print Ledger Assistant is a kiosk-based 3D print lab management system built for FlashForge printer fleets. It provides secure student authentication, enforces print authorization, prevents unauthorized usage, and tracks filament consumption in real time.
 
-**Print Ledger Assistant** is a kiosk-based 3D print lab management system designed for FlashForge printer fleets. It handles student swipe authentication, printer authorization, unauthorized print "sniping," and real-time filament tracking.
+✨ Core Features
 
----
+Magnetic Card Authentication
+HID-mode card swipe system for seamless student login at the kiosk.
 
-## ✨ Key Features
-* **Magnetic Card Swipe:** HID-mode student authentication.
-* **FlashForge Watchdog:** Direct control via Port 8899 using `~M27`, `~M105`, and `~M26`.
-* **Unauthorized Snipe:** Automated print abortion for unlogged sessions.
-* **Filament Guard:** Real-time gram tracking via Supabase tables.
-* **No-Auth Database:** Direct table interaction for rapid lab deployment.
+FlashForge Watchdog (Port 8899)
+Direct low-level printer communication using:
 
----
+~M27 for print status
+~M105 for temperature telemetry
+~M26 for job termination
 
-## 📂 Project Structure
-```text
+Unauthorized Print Protection ("Snipe")
+Automatically aborts any print or heating activity that is not tied to an active authorized session.
+
+Filament Guard
+Tracks filament usage in grams in real time using Supabase-backed tables.
+
+Rapid Deployment Database Model
+Uses Supabase with anon key access for fast setup in controlled lab environments.
+
+📂 Project Structure
 Print-Ledger-Assistant/
 ├── client/
 │   ├── src/
-│   │   ├── components/      # UI elements
+│   │   ├── components/      # Reusable UI elements
 │   │   ├── pages/           # Kiosk, Student, Admin views
-│   │   ├── App.tsx          # Main routing logic
-│   │   ├── App.css          # Global styling
+│   │   ├── App.tsx          # Application routing
+│   │   ├── App.css          # Global styles
 │   │   ├── index.css
 │   │   ├── main.tsx
-│   │   └── types.ts         # Printer & DB interfaces
+│   │   └── types.ts         # Shared interfaces (Printer, DB)
 │   ├── package.json
 │   └── vite.config.ts
+│
 ├── server/
-│   ├── sql/                 # Table definitions
+│   ├── sql/                 # Database schema definitions
 │   ├── src/
 │   │   ├── routes/          # API endpoints
-│   │   ├── db.ts            # Supabase initialization
-│   │   ├── filament.ts      # Tracking logic
-│   │   ├── print-policy.ts  # Timing/auth rules
+│   │   ├── db.ts            # Supabase client setup
+│   │   ├── filament.ts      # Filament tracking logic
+│   │   ├── print-policy.ts  # Authorization + timing rules
 │   │   ├── printer-status.ts
 │   │   ├── radar.ts         # FlashForge TCP watchdog
-│   │   └── server.ts        # Entry point (Port 3000)
+│   │   └── server.ts        # Backend entry (Port 3000)
 │   ├── .env.example
 │   └── package.json
-├── rules.md                 # Agent-facing source of truth
+│
+├── rules.md                 # System rules / agent logic
 └── README.md
-```
-🚀 Getting Started1. Supabase SetupEnsure your Supabase tables (Students, Jobs, Printers, Filament) are configured. This project uses direct table access via the Anon Key.2. Environment ConfigurationCreate a .env file in the server directory:Code snippetPORT=3000
+🚀 Getting Started
+1. Supabase Setup
+
+Create and configure the following tables:
+
+Students
+Jobs
+Printers
+Filament
+
+This system interacts directly with tables using the Supabase Anon Key.
+
+2. Environment Configuration
+
+Create a .env file inside /server:
+
+PORT=3000
 SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_ANON_KEY=your-long-anon-key-string-goes-here
-3. InstallationStart the Backend:Bashcd server
+SUPABASE_ANON_KEY=your-anon-key
+3. Installation & Run
+
+Start Backend
+
+cd server
 npm install
 npm run dev
-Start the Frontend:Bashcd client
+
+Start Frontend
+
+cd client
 npm install
 npm run dev
-⚙️ Printer Control Logic (Port 8899)The watchdog polls printers every second based on the FlashForge API Docs:CommandPurposeDescription~M27StatusInspects if the printer is currently building.~M105TelemetryMonitors real-time extruder/bed temperatures.~M26SnipeAborts unauthorized heating or printing activity.PoliciesAuthorization Window: 2 minutes.Snipe Trigger: If ~M105 shows active heating or ~M27 shows a busy state without an authorized session in the DB, ~M26 is sent immediately.🤝 SupportMaintainer: @cristobairlLicense: MIT
+⚙️ Printer Control Logic (Port 8899)
+
+The system continuously polls each printer using the FlashForge TCP interface.
+
+Commands
+Command	Purpose	Description
+~M27	Status	Checks if a print job is active
+~M105	Telemetry	Reads extruder and bed temperature
+~M26	Snipe	Cancels unauthorized prints or heating
+🔐 Enforcement Policies
+
+Authorization Window
+Users must begin printing within 2 minutes of authentication.
+
+Snipe Conditions
+A print is immediately terminated if:
+
+~M105 detects heating activity without authorization, or
+~M27 reports an active job not linked to a valid session
+🤝 Support
+
+Maintainer
+@cristobairl
+
+License
+MIT
