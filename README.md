@@ -26,7 +26,8 @@
 ---
 
 ## 📂 Project Structure
-```text
+
+---
 Print-Ledger-Assistant/
 ├── client/             # Vite + React App
 │   ├── src/
